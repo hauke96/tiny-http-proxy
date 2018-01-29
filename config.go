@@ -14,6 +14,8 @@ type Config struct {
 }
 
 func LoadConfig() {
+	Debug.Println("Try to load config")
+
 	file, err := ioutil.ReadFile(ConfigPath)
 
 	if err != nil {
@@ -21,4 +23,5 @@ func LoadConfig() {
 	}
 
 	json.Unmarshal(file, &Configuration)
+	Debug.Println("Loading config succeeded")
 }

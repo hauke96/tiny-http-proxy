@@ -10,6 +10,8 @@ func main() {
 	LoadConfig()
 
 	http.HandleFunc("/", handleGet)
+
+	Info.Println("Ready to serve")
 	http.ListenAndServe(":8080", nil)
 }
 
