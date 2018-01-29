@@ -18,7 +18,7 @@ func LoadConfig() {
 	file, err := ioutil.ReadFile(ConfigPath)
 
 	if err != nil {
-		Fatal.Println(err.Error())
+		Error.Println(err.Error())
 		os.Exit(1)
 	}
 
