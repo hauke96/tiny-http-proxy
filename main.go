@@ -6,9 +6,9 @@ import (
 	"net/http"
 )
 
-var TARGET_HOST string = "http://hauke-stieler.de/"
-
 func main() {
+	LoadConfig()
+
 	http.HandleFunc("/", handleGet)
 	http.ListenAndServe(":8080", nil)
 }
@@ -16,7 +16,7 @@ func main() {
 func handleGet(w http.ResponseWriter, r *http.Request) {
 	fmt.Printf("%s", r.URL.Path)
 
-	response, err := http.Get(TARGET_HOST + r.URL.Path)
+	response, err := http.Get(Configuration.Target + r.URL.Path)
 	if err != nil {
 		handleError(err, w)
 		return
