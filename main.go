@@ -18,7 +18,7 @@ func main() {
 func handleGet(w http.ResponseWriter, r *http.Request) {
 	fullUrl := r.URL.Path + "?" + r.URL.RawQuery
 
-	fmt.Printf("Requested '%s'\n", fullUrl)
+	Info.Printf("Requested '%s'\n", fullUrl)
 
 	response, err := http.Get(Configuration.Target + fullUrl)
 	if err != nil {
