@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"io/ioutil"
-	"os"
 )
 
 const ConfigPath = "./tiny.json"
@@ -18,8 +17,7 @@ func LoadConfig() {
 	file, err := ioutil.ReadFile(ConfigPath)
 
 	if err != nil {
-		Error.Println(err.Error())
-		os.Exit(1)
+		Error.Fatalln(err.Error())
 	}
 
 	json.Unmarshal(file, &Configuration)
