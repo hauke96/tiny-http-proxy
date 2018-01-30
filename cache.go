@@ -41,26 +41,31 @@ func CreateCache(path string) (*Cache, error) {
 	return cache, nil
 }
 
-func (c Cache) has(key string) bool {
-	hashValue := hex.EncodeToString(c.hash.Sum([]byte(key)))
+func (c *Cache) has(key string) bool {
+	hashValue := calcHash(key)
 
 	_, ok := c.knownValues[hashValue]
 
 	return ok
 }
 
-func (c Cache) get(key string) ([]byte, error) {
-	hashValue := hex.EncodeToString(c.hash.Sum([]byte(key)))
+func (c *Cache) get(key string) ([]byte, error) {
+	hashValue := calcHash(key)
 
 	content, ok := c.knownValues[hashValue]
 
 	// Key is not known
 	if !ok {
+		Debug.Printf("Cache doen't know key '%s'", hashValue)
 		return nil, errors.New(fmt.Sprintf("Key '%s' is not known to cache", hashValue))
 	}
 
+	Debug.Printf("Cache has key '%s'", hashValue)
+
 	// Key is known, but not loaded into RAM
 	if content == nil {
+		Debug.Printf("Cache has content for '%s' already loaded", hashValue)
+
 		content, err := ioutil.ReadFile(c.folder + hashValue)
 		if err != nil {
 			Error.Printf("Error reading cached file '%s'", hashValue)
@@ -73,10 +78,23 @@ func (c Cache) get(key string) ([]byte, error) {
 	return content, nil
 }
 
-func (c Cache) put(key string, content []byte) error {
-	hashValue := hex.EncodeToString(c.hash.Sum([]byte(key)))
+func (c *Cache) put(key string, content []byte) error {
+	hashValue := calcHash(key)
 
-	c.knownValues[hashValue] = content
+	err := ioutil.WriteFile(c.folder+hashValue, content, 0644)
 
-	return ioutil.WriteFile(c.folder+hashValue, content, 0644)
+	// Make sure, that the RAM-cache only holds values we were able to write.
+	// This is a decision to prevent a false impression of the cache: If the
+	// write fails, the cache isn't working correctly, which should be fixed by
+	// the user of this cache.
+	if err == nil {
+		c.knownValues[hashValue] = content
+	}
+
+	return err
+}
+
+func calcHash(data string) string {
+	sha := sha256.Sum256([]byte(data))
+	return hex.EncodeToString(sha[:])
 }
