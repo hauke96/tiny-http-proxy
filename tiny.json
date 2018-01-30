@@ -1,3 +1,4 @@
 {
-	"target": "http://hauke-stieler.de/"
+	"target": "http://hauke-stieler.de/",
+	"cache_folder": "./cache/"
 }

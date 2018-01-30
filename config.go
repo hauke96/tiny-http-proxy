@@ -10,7 +10,8 @@ const ConfigPath = "./tiny.json"
 var Configuration Config
 
 type Config struct {
-	Target string `json:"target"`
+	Target      string `json:"target"`
+	CacheFolder string `json:"cache_folder"`
 }
 
 func LoadConfig() {
