@@ -14,15 +14,14 @@ type Config struct {
 	CacheFolder string `json:"cache_folder"`
 }
 
-func LoadConfig() {
-	Debug.Println("Try to load config")
-
+func LoadConfig() error {
 	file, err := ioutil.ReadFile(ConfigPath)
 
 	if err != nil {
-		Error.Fatalln(err.Error())
+		return err
 	}
 
 	json.Unmarshal(file, &Configuration)
-	Debug.Println("Loading config succeeded")
+
+	return nil
 }

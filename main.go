@@ -9,9 +9,13 @@ import (
 var cache *Cache
 
 func main() {
-	LoadConfig()
-
 	var err error
+
+	err = LoadConfig()
+	if err != nil {
+		Error.Fatalf("Could not read config: '%s'", err.Error())
+	}
+
 	cache, err = CreateCache(Configuration.CacheFolder)
 
 	if err != nil {
