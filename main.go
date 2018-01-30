@@ -29,6 +29,8 @@ func handleGet(w http.ResponseWriter, r *http.Request) {
 
 	Info.Printf("Requested '%s'\n", fullUrl)
 
+	// Only pass request to target host when cache does not has an entry for the
+	// given URL.
 	if cache.has(fullUrl) {
 		content, err := cache.get(fullUrl)
 
@@ -53,7 +55,7 @@ func handleGet(w http.ResponseWriter, r *http.Request) {
 
 		err = cache.put(fullUrl, body)
 
-		// Do not fail. Event if the put failed, the end user would be sad if he
+		// Do not fail. Even if the put failed, the end user would be sad if he
 		// gets an error, even if the proxy alone works.
 		if err != nil {
 			Error.Printf("Could not write into cache: %s", err)

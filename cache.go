@@ -24,6 +24,8 @@ func CreateCache(path string) (*Cache, error) {
 
 	values := make(map[string][]byte, 0)
 
+	// Go through every file an save its name in the map. The content of the file
+	// is loaded when needed.
 	for _, info := range fileInfos {
 		if !info.IsDir() {
 			values[info.Name()] = nil
@@ -88,6 +90,7 @@ func (c *Cache) put(key string, content []byte) error {
 	// write fails, the cache isn't working correctly, which should be fixed by
 	// the user of this cache.
 	if err == nil {
+		Debug.Printf("Cache wrote content into '%s'", hashValue)
 		c.knownValues[hashValue] = content
 	}
 
