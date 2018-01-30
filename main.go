@@ -17,7 +17,7 @@ func main() {
 	http.HandleFunc("/", handleGet)
 
 	Info.Println("Ready to serve")
-	http.ListenAndServe(":8080", nil)
+	http.ListenAndServe(":"+config.Port, nil)
 }
 
 func prepare() {

@@ -8,6 +8,7 @@ import (
 type Config struct {
 	Target      string `json:"target"`
 	CacheFolder string `json:"cache_folder"`
+	Port        string `json:"port"`
 }
 
 func LoadConfig(path string) (*Config, error) {

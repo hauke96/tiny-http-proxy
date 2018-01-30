@@ -6,8 +6,8 @@ The tiny-http-proxy acts as a reverse proxy for one server of your choice illust
 ```
 you ---> network <---> proxy ---> cache
             |
-			V
-		other site
+            V
+       other site
 ```
 Where "network" may be anything (LAN/WAN/...).
 
@@ -26,11 +26,9 @@ All the configuration is done in the `tiny.json` file. This is a simple JSON-fil
 
 | Property | Type | Description |
 |:---|:---|:---|
+| `port` | `string` | The port this server is listening to. |
 | `target` | `string` | The target host every request should be routed to. |
 | `cache_folder` | `string` | The folder where the cache files are stored. This folder must exist and must be writable. |
-
-## Port
-Currently the port is not configurable (if you need it, fix it and create a pull-request ;) ) and fixed at `8080`.
 
 # Usage
 If you normally go to `http://foo.com/bar?request=test` then now go to `http://localhost:8080/bar?request=test` (assumed there's a correct configuration).
@@ -40,8 +38,9 @@ Example: Create a proxy for google:
 
 ```json
 {
-	"target": "http://www.google.com/",
-	"cache_folder": "./cache/"
+    "port": "8080",
+    "target": "http://www.google.com/",
+    "cache_folder": "./cache/"
 }
 ```
 Then using the proxy with the URL `http://localhost:8080/search?source=hp&ei=QmBwWtTMHojOwAK2146oDQ&btnG=Suche&q=go+(language)` will open the result page of a google search for "go (language)". You may notice, that the site looks different then the original one. This happens because the proxy does not change links in the HTML (e.g. to `css` files).

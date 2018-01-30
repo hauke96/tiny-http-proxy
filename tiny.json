@@ -1,4 +1,5 @@
 {
-	"target": "http://hauke-stieler.de/",
+	"port": "8080",
+	"target": "http://www.google.com/",
 	"cache_folder": "./cache/"
 }
