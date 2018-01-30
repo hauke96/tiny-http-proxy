@@ -6,16 +6,19 @@ import (
 	"net/http"
 )
 
+var Configuration *Config
 var cache *Cache
 
 func main() {
 	var err error
 
-	err = LoadConfig()
+	Info.Println("Load config")
+	Configuration, err = LoadConfig()
 	if err != nil {
 		Error.Fatalf("Could not read config: '%s'", err.Error())
 	}
 
+	Info.Println("Init cache")
 	cache, err = CreateCache(Configuration.CacheFolder)
 
 	if err != nil {

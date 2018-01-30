@@ -7,21 +7,20 @@ import (
 
 const ConfigPath = "./tiny.json"
 
-var Configuration Config
-
 type Config struct {
 	Target      string `json:"target"`
 	CacheFolder string `json:"cache_folder"`
 }
 
-func LoadConfig() error {
+func LoadConfig() (*Config, error) {
 	file, err := ioutil.ReadFile(ConfigPath)
 
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	json.Unmarshal(file, &Configuration)
+	var config Config
+	json.Unmarshal(file, &config)
 
-	return nil
+	return &config, nil
 }
