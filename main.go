@@ -6,8 +6,17 @@ import (
 	"net/http"
 )
 
+var cache *Cache
+
 func main() {
 	LoadConfig()
+
+	var err error
+	cache, err = CreateCache(Configuration.CacheFolder)
+
+	if err != nil {
+		Error.Fatalf("Could not init cache: '%s'", err.Error())
+	}
 
 	http.HandleFunc("/", handleGet)
 
@@ -20,20 +29,38 @@ func handleGet(w http.ResponseWriter, r *http.Request) {
 
 	Info.Printf("Requested '%s'\n", fullUrl)
 
-	response, err := http.Get(Configuration.Target + fullUrl)
-	if err != nil {
-		handleError(err, w)
-		return
-	}
+	if cache.has(fullUrl) {
+		content, err := cache.get(fullUrl)
 
-	body, err := ioutil.ReadAll(response.Body)
-	response.Body.Close()
-	if err != nil {
-		handleError(err, w)
-		return
-	}
+		if err != nil {
+			handleError(err, w)
+		} else {
+			w.Write(content)
+		}
+	} else {
+		response, err := http.Get(Configuration.Target + fullUrl)
+		if err != nil {
+			handleError(err, w)
+			return
+		}
 
-	w.Write(body)
+		body, err := ioutil.ReadAll(response.Body)
+		response.Body.Close()
+		if err != nil {
+			handleError(err, w)
+			return
+		}
+
+		err = cache.put(fullUrl, body)
+
+		// Do not fail. Event if the put failed, the end user would be sad if he
+		// gets an error, even if the proxy alone works.
+		if err != nil {
+			Error.Printf("Could not write into cache: %s", err)
+		}
+
+		w.Write(body)
+	}
 }
 
 func handleError(err error, w http.ResponseWriter) {
