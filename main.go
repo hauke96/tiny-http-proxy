@@ -4,12 +4,15 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"time"
 )
 
 const configPath = "./tiny.json"
 
 var config *Config
 var cache *Cache
+
+var client *http.Client
 
 func main() {
 	prepare()
@@ -35,6 +38,10 @@ func prepare() {
 	if err != nil {
 		Error.Fatalf("Could not init cache: '%s'", err.Error())
 	}
+
+	client = &http.Client{
+		Timeout: time.Second * 30,
+	}
 }
 
 func handleGet(w http.ResponseWriter, r *http.Request) {
@@ -53,7 +60,7 @@ func handleGet(w http.ResponseWriter, r *http.Request) {
 			w.Write(content)
 		}
 	} else {
-		response, err := http.Get(config.Target + fullUrl)
+		response, err := client.Get(config.Target + fullUrl)
 		if err != nil {
 			handleError(err, w)
 			return
