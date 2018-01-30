@@ -17,10 +17,16 @@ var client *http.Client
 func main() {
 	prepare()
 
-	http.HandleFunc("/", handleGet)
-
 	Info.Println("Ready to serve")
-	http.ListenAndServe(":"+config.Port, nil)
+
+	server := &http.Server{
+		Addr:         ":" + config.Port,
+		WriteTimeout: 30 * time.Second,
+		ReadTimeout:  30 * time.Second,
+		Handler:      http.HandlerFunc(handleGet),
+	}
+
+	server.ListenAndServe()
 }
 
 func prepare() {
