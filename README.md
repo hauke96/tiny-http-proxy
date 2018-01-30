@@ -17,9 +17,12 @@ Just clone this repo and run it:
 ```
 git clone https://github.com/hauke96/tiny-http-proxy.git
 cd tiny-http-proxy
+mkdir cache
 go run *.go
 ```
 Of course you can also use the [ZIP-archive](https://github.com/hauke96/tiny-http-proxy/archive/master.zip) if you don't have git installed.
+
+Instead of `mkdir cache`, you have to make sure that the folder you'll configure later exists.
 
 # Configuration
 All the configuration is done in the `tiny.json` file. This is a simple JSON-file with some properties that should be set by you:
@@ -33,7 +36,13 @@ All the configuration is done in the `tiny.json` file. This is a simple JSON-fil
 # Usage
 If you normally go to `http://foo.com/bar?request=test` then now go to `http://localhost:8080/bar?request=test` (assumed there's a correct configuration).
 
-# Example
+# Exmaples
+## With the given config
+The current configuration caches requests to `https://imgs.xkcd.com`. So just start the proxy and go to e.g.:
+
+[http://localhost:8080/comics/campaign_fundraising_emails.png](http://localhost:8080/comics/campaign_fundraising_emails.png)
+
+## Caching google searches
 Example: Create a proxy for google:
 
 ```json
