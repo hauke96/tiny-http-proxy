@@ -6,29 +6,35 @@ import (
 	"net/http"
 )
 
-var Configuration *Config
+const configPath = "./tiny.json"
+
+var config *Config
 var cache *Cache
 
 func main() {
-	var err error
-
-	Info.Println("Load config")
-	Configuration, err = LoadConfig()
-	if err != nil {
-		Error.Fatalf("Could not read config: '%s'", err.Error())
-	}
-
-	Info.Println("Init cache")
-	cache, err = CreateCache(Configuration.CacheFolder)
-
-	if err != nil {
-		Error.Fatalf("Could not init cache: '%s'", err.Error())
-	}
+	prepare()
 
 	http.HandleFunc("/", handleGet)
 
 	Info.Println("Ready to serve")
 	http.ListenAndServe(":8080", nil)
+}
+
+func prepare() {
+	var err error
+
+	Info.Println("Load config")
+	config, err = LoadConfig(configPath)
+	if err != nil {
+		Error.Fatalf("Could not read config: '%s'", err.Error())
+	}
+
+	Info.Println("Init cache")
+	cache, err = CreateCache(config.CacheFolder)
+
+	if err != nil {
+		Error.Fatalf("Could not init cache: '%s'", err.Error())
+	}
 }
 
 func handleGet(w http.ResponseWriter, r *http.Request) {
@@ -47,7 +53,7 @@ func handleGet(w http.ResponseWriter, r *http.Request) {
 			w.Write(content)
 		}
 	} else {
-		response, err := http.Get(Configuration.Target + fullUrl)
+		response, err := http.Get(config.Target + fullUrl)
 		if err != nil {
 			handleError(err, w)
 			return

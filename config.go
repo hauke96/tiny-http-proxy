@@ -5,15 +5,13 @@ import (
 	"io/ioutil"
 )
 
-const ConfigPath = "./tiny.json"
-
 type Config struct {
 	Target      string `json:"target"`
 	CacheFolder string `json:"cache_folder"`
 }
 
-func LoadConfig() (*Config, error) {
-	file, err := ioutil.ReadFile(ConfigPath)
+func LoadConfig(path string) (*Config, error) {
+	file, err := ioutil.ReadFile(path)
 
 	if err != nil {
 		return nil, err
