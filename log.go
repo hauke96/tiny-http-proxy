@@ -6,7 +6,7 @@ import (
 	"os"
 )
 
-const Metadata int = log.Ldate | log.Ltime | log.Lshortfile
+const Metadata int = log.Ldate | log.Lmicroseconds | log.Lshortfile
 
 var InfoWriter io.Writer = os.Stdout
 var DebugWriter io.Writer = os.Stdout
