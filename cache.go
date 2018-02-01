@@ -71,16 +71,7 @@ func (c *Cache) get(key string) ([]byte, error) {
 		return nil, errors.New(fmt.Sprintf("Key '%s' is not known to cache", hashValue))
 	}
 
-	// Try to get mutex. Error if not found.
-	c.mutex.Lock()
-	mutex, hasMutex := c.mutexes[hashValue]
-	if !hasMutex {
-		Debug.Printf("Cache doen't know mutex for key '%s'", hashValue)
-
-		mutex = &sync.Mutex{}
-		c.mutexes[hashValue] = mutex
-	}
-	c.mutex.Unlock()
+	mutex := c.ensureMutex(hashValue)
 
 	Debug.Printf("Cache has key '%s'", hashValue)
 
@@ -107,16 +98,7 @@ func (c *Cache) get(key string) ([]byte, error) {
 func (c *Cache) put(key string, content []byte) error {
 	hashValue := calcHash(key)
 
-	c.mutex.Lock()
-	mutex, hasMutex := c.mutexes[hashValue]
-	// Mutex is not known
-	if !hasMutex {
-		Debug.Printf("Cache doen't know mutex for key '%s'", hashValue)
-
-		mutex = &sync.Mutex{}
-		c.mutexes[hashValue] = mutex
-	}
-	c.mutex.Unlock()
+	mutex := c.ensureMutex(hashValue)
 
 	mutex.Lock()
 	defer mutex.Unlock()
@@ -135,6 +117,23 @@ func (c *Cache) put(key string, content []byte) error {
 	}
 
 	return err
+}
+
+// ensureMutex returns the mutex mapped by the given hashValue. If the mutex
+// does not exist, a new one will be created.
+func (c *Cache) ensureMutex(hashValue string) *sync.Mutex {
+	c.mutex.Lock()
+	mutex, hasMutex := c.mutexes[hashValue]
+	// Mutex is not known
+	if !hasMutex {
+		Debug.Printf("Cache doen't know mutex for key '%s'", hashValue)
+
+		mutex = &sync.Mutex{}
+		c.mutexes[hashValue] = mutex
+	}
+	c.mutex.Unlock()
+
+	return mutex
 }
 
 func calcHash(data string) string {
