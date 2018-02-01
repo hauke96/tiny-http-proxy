@@ -17,7 +17,7 @@ type Cache struct {
 	// there's always a value when there's a mutex and vise versa
 	knownValues map[string][]byte
 	mutexes     map[string]*sync.Mutex
-	//TODO one mutex for the mutex-map when adding a new mutex
+	mutex       *sync.Mutex
 }
 
 func CreateCache(path string) (*Cache, error) {
@@ -40,11 +40,14 @@ func CreateCache(path string) (*Cache, error) {
 
 	hash := sha256.New()
 
+	mutex := &sync.Mutex{}
+
 	cache := &Cache{
 		folder:      path,
 		hash:        hash,
 		knownValues: values,
 		mutexes:     mutexes,
+		mutex:       mutex,
 	}
 
 	return cache, nil
@@ -69,6 +72,7 @@ func (c *Cache) get(key string) ([]byte, error) {
 	}
 
 	// Try to get mutex. Error if not found.
+	c.mutex.Lock()
 	mutex, hasMutex := c.mutexes[hashValue]
 	if !hasMutex {
 		Debug.Printf("Cache doen't know mutex for key '%s'", hashValue)
@@ -76,6 +80,7 @@ func (c *Cache) get(key string) ([]byte, error) {
 		mutex = &sync.Mutex{}
 		c.mutexes[hashValue] = mutex
 	}
+	c.mutex.Unlock()
 
 	Debug.Printf("Cache has key '%s'", hashValue)
 
@@ -102,6 +107,7 @@ func (c *Cache) get(key string) ([]byte, error) {
 func (c *Cache) put(key string, content []byte) error {
 	hashValue := calcHash(key)
 
+	c.mutex.Lock()
 	mutex, hasMutex := c.mutexes[hashValue]
 	// Mutex is not known
 	if !hasMutex {
@@ -110,6 +116,7 @@ func (c *Cache) put(key string, content []byte) error {
 		mutex = &sync.Mutex{}
 		c.mutexes[hashValue] = mutex
 	}
+	c.mutex.Unlock()
 
 	mutex.Lock()
 	defer mutex.Unlock()
