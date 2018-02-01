@@ -11,12 +11,9 @@ import (
 )
 
 type Cache struct {
-	folder string
-	hash   hash.Hash
-	// TODO put []byte and *sync.Mutex together into one struct to be sure, that
-	// there's always a value when there's a mutex and vise versa
+	folder      string
+	hash        hash.Hash
 	knownValues map[string][]byte
-	mutexes     map[string]*sync.Mutex
 	mutex       *sync.Mutex
 }
 
@@ -28,10 +25,10 @@ func CreateCache(path string) (*Cache, error) {
 	}
 
 	values := make(map[string][]byte, 0)
-	mutexes := make(map[string]*sync.Mutex, 0)
 
 	// Go through every file an save its name in the map. The content of the file
-	// is loaded when needed.
+	// is loaded when needed. This makes sure that we don't have to read
+	// the directory content each time the user wants data that's not yet loaded.
 	for _, info := range fileInfos {
 		if !info.IsDir() {
 			values[info.Name()] = nil
@@ -46,7 +43,6 @@ func CreateCache(path string) (*Cache, error) {
 		folder:      path,
 		hash:        hash,
 		knownValues: values,
-		mutexes:     mutexes,
 		mutex:       mutex,
 	}
 
@@ -56,7 +52,9 @@ func CreateCache(path string) (*Cache, error) {
 func (c *Cache) has(key string) bool {
 	hashValue := calcHash(key)
 
+	c.mutex.Lock()
 	_, ok := c.knownValues[hashValue]
+	c.mutex.Unlock()
 
 	return ok
 }
@@ -65,13 +63,13 @@ func (c *Cache) get(key string) ([]byte, error) {
 	hashValue := calcHash(key)
 
 	// Try to get content. Error if not found.
+	c.mutex.Lock()
 	content, ok := c.knownValues[hashValue]
+	c.mutex.Unlock()
 	if !ok {
 		Debug.Printf("Cache doen't know key '%s'", hashValue)
 		return nil, errors.New(fmt.Sprintf("Key '%s' is not known to cache", hashValue))
 	}
-
-	mutex := c.ensureMutex(hashValue)
 
 	Debug.Printf("Cache has key '%s'", hashValue)
 
@@ -79,17 +77,15 @@ func (c *Cache) get(key string) ([]byte, error) {
 	if content == nil {
 		Debug.Printf("Cache has content for '%s' already loaded", hashValue)
 
-		mutex.Lock()
-
 		content, err := ioutil.ReadFile(c.folder + hashValue)
 		if err != nil {
 			Error.Printf("Error reading cached file '%s'", hashValue)
 			return nil, err
 		}
 
+		c.mutex.Lock()
 		c.knownValues[hashValue] = content
-
-		mutex.Unlock()
+		c.mutex.Unlock()
 	}
 
 	return content, nil
@@ -97,11 +93,6 @@ func (c *Cache) get(key string) ([]byte, error) {
 
 func (c *Cache) put(key string, content []byte) error {
 	hashValue := calcHash(key)
-
-	mutex := c.ensureMutex(hashValue)
-
-	mutex.Lock()
-	defer mutex.Unlock()
 
 	err := ioutil.WriteFile(c.folder+hashValue, content, 0644)
 
@@ -111,29 +102,12 @@ func (c *Cache) put(key string, content []byte) error {
 	// the user of this cache.
 	if err == nil {
 		Debug.Printf("Cache wrote content into '%s'", hashValue)
+		c.mutex.Lock()
 		c.knownValues[hashValue] = content
-	} else {
-		//TODO remove mutex or is this not neccesarry?
+		c.mutex.Unlock()
 	}
 
 	return err
-}
-
-// ensureMutex returns the mutex mapped by the given hashValue. If the mutex
-// does not exist, a new one will be created.
-func (c *Cache) ensureMutex(hashValue string) *sync.Mutex {
-	c.mutex.Lock()
-	mutex, hasMutex := c.mutexes[hashValue]
-	// Mutex is not known
-	if !hasMutex {
-		Debug.Printf("Cache doen't know mutex for key '%s'", hashValue)
-
-		mutex = &sync.Mutex{}
-		c.mutexes[hashValue] = mutex
-	}
-	c.mutex.Unlock()
-
-	return mutex
 }
 
 func calcHash(data string) string {
