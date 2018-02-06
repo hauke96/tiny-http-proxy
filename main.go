@@ -26,7 +26,10 @@ func main() {
 		Handler:      http.HandlerFunc(handleGet),
 	}
 
-	server.ListenAndServe()
+	err := server.ListenAndServe()
+	if err != nil {
+		Error.Fatal(err.Error())
+	}
 }
 
 func prepare() {
