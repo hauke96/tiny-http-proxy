@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"hash"
 	"io/ioutil"
+	"os"
 	"sync"
 
 	"github.com/hauke96/sigolo"
@@ -22,8 +23,9 @@ type Cache struct {
 func CreateCache(path string) (*Cache, error) {
 	fileInfos, err := ioutil.ReadDir(path)
 	if err != nil {
-		sigolo.Error("Error opening cache folder '%s':", path)
-		return nil, err
+		sigolo.Error("Cannot open cache folder '%s': %s", path, err)
+		sigolo.Info("Create cache folder '%s'", path)
+		os.Mkdir(path, os.ModePerm)
 	}
 
 	values := make(map[string][]byte, 0)
@@ -81,7 +83,7 @@ func (c *Cache) get(key string) ([]byte, error) {
 
 		content, err := ioutil.ReadFile(c.folder + hashValue)
 		if err != nil {
-			sigolo.Error("Error reading cached file '%s'", hashValue)
+			sigolo.Error("Error reading cached file '%s': %s", hashValue, err)
 			return nil, err
 		}
 
