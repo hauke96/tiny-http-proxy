@@ -5,6 +5,8 @@ import (
 	"io/ioutil"
 	"net/http"
 	"time"
+
+	"github.com/hauke96/sigolo"
 )
 
 const configPath = "./tiny.json"
@@ -17,7 +19,7 @@ var client *http.Client
 func main() {
 	prepare()
 
-	Info.Println("Ready to serve")
+	sigolo.Info("Ready to serve")
 
 	server := &http.Server{
 		Addr:         ":" + config.Port,
@@ -28,24 +30,29 @@ func main() {
 
 	err := server.ListenAndServe()
 	if err != nil {
-		Error.Fatal(err.Error())
+		sigolo.Fatal(err.Error())
 	}
+}
+
+func configureLogging() {
+	sigolo.FormatFunctions[sigolo.LOG_INFO] = sigolo.LogPlain
+	//sigolo.LogLevel = sigolo.LOG_DEBUG
 }
 
 func prepare() {
 	var err error
 
-	Info.Println("Load config")
+	sigolo.Info("Load config")
 	config, err = LoadConfig(configPath)
 	if err != nil {
-		Error.Fatalf("Could not read config: '%s'", err.Error())
+		sigolo.Fatal("Could not read config: '%s'", err.Error())
 	}
 
-	Info.Println("Init cache")
+	sigolo.Info("Init cache")
 	cache, err = CreateCache(config.CacheFolder)
 
 	if err != nil {
-		Error.Fatalf("Could not init cache: '%s'", err.Error())
+		sigolo.Fatal("Could not init cache: '%s'", err.Error())
 	}
 
 	client = &http.Client{
@@ -56,7 +63,7 @@ func prepare() {
 func handleGet(w http.ResponseWriter, r *http.Request) {
 	fullUrl := r.URL.Path + "?" + r.URL.RawQuery
 
-	Info.Printf("Requested '%s'\n", fullUrl)
+	sigolo.Info("Requested '%s'", fullUrl)
 
 	// Only pass request to target host when cache does not has an entry for the
 	// given URL.
@@ -87,7 +94,7 @@ func handleGet(w http.ResponseWriter, r *http.Request) {
 		// Do not fail. Even if the put failed, the end user would be sad if he
 		// gets an error, even if the proxy alone works.
 		if err != nil {
-			Error.Printf("Could not write into cache: %s", err)
+			sigolo.Error("Could not write into cache: %s", err)
 		}
 
 		w.Write(body)
@@ -95,7 +102,7 @@ func handleGet(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleError(err error, w http.ResponseWriter) {
-	Error.Println(err.Error())
+	sigolo.Error(err.Error())
 	w.WriteHeader(500)
 	fmt.Fprintf(w, err.Error())
 }

@@ -8,6 +8,8 @@ import (
 	"hash"
 	"io/ioutil"
 	"sync"
+
+	"github.com/hauke96/sigolo"
 )
 
 type Cache struct {
@@ -20,7 +22,7 @@ type Cache struct {
 func CreateCache(path string) (*Cache, error) {
 	fileInfos, err := ioutil.ReadDir(path)
 	if err != nil {
-		Error.Printf("Error opening cache folder '%s':\n", path)
+		sigolo.Error("Error opening cache folder '%s':", path)
 		return nil, err
 	}
 
@@ -67,19 +69,19 @@ func (c *Cache) get(key string) ([]byte, error) {
 	content, ok := c.knownValues[hashValue]
 	c.mutex.Unlock()
 	if !ok {
-		Debug.Printf("Cache doen't know key '%s'", hashValue)
+		sigolo.Debug("Cache doen't know key '%s'", hashValue)
 		return nil, errors.New(fmt.Sprintf("Key '%s' is not known to cache", hashValue))
 	}
 
-	Debug.Printf("Cache has key '%s'", hashValue)
+	sigolo.Debug("Cache has key '%s'", hashValue)
 
 	// Key is known, but not loaded into RAM
 	if content == nil {
-		Debug.Printf("Cache has content for '%s' already loaded", hashValue)
+		sigolo.Debug("Cache has content for '%s' already loaded", hashValue)
 
 		content, err := ioutil.ReadFile(c.folder + hashValue)
 		if err != nil {
-			Error.Printf("Error reading cached file '%s'", hashValue)
+			sigolo.Error("Error reading cached file '%s'", hashValue)
 			return nil, err
 		}
 
@@ -101,7 +103,7 @@ func (c *Cache) put(key string, content []byte) error {
 	// write fails, the cache isn't working correctly, which should be fixed by
 	// the user of this cache.
 	if err == nil {
-		Debug.Printf("Cache wrote content into '%s'", hashValue)
+		sigolo.Debug("Cache wrote content into '%s'", hashValue)
 		c.mutex.Lock()
 		c.knownValues[hashValue] = content
 		c.mutex.Unlock()
