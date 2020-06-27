@@ -94,7 +94,7 @@ func (c *Cache) get(key string) (*io.Reader, error) {
 		response = file
 
 		sigolo.Debug("Create reader from file %s", hashValue)
-	} else {
+	} else { // Key is known and data is already loaded to RAM
 		response = bytes.NewReader(content)
 		sigolo.Debug("Create reader from %d byte large cache content", len(content))
 	}

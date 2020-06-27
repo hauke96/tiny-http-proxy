@@ -68,20 +68,8 @@ func handleGet(w http.ResponseWriter, r *http.Request) {
 
 	sigolo.Info("Requested '%s'", fullUrl)
 
-	// Only pass request to target host when cache does not has an entry for the
-	// given URL.
-	if cache.has(fullUrl) {
-		content, err := cache.get(fullUrl)
-
-		if err != nil {
-			handleError(err, w)
-		} else {
-			_, err := io.Copy(w, *content)
-			if err != nil {
-				sigolo.Error("Error writing response: %s", err.Error())
-			}
-		}
-	} else { // Cache miss
+	// Cache miss -> Load data from requested URL and add to cache
+	if !cache.has(fullUrl) {
 		response, err := client.Get(config.Target + fullUrl)
 		if err != nil {
 			handleError(err, w)
@@ -97,23 +85,21 @@ func handleGet(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		defer response.Body.Close()
+	}
 
-		// Do not fail. Even if the put failed, the end user would be sad if he
-		// gets an error, even if the proxy alone works.
-		if err != nil {
-			sigolo.Error("Could not write into cache")
-			handleError(err, w)
-			return
-		}
+	// The cache has definitely the data we want, so get a reader for that
+	content, err := cache.get(fullUrl)
 
-		content, err := cache.get(fullUrl)
+	if err != nil {
+		handleError(err, w)
+	} else {
 		bytesWritten, err := io.Copy(w, *content)
 		if err != nil {
+			sigolo.Error("Error writing response: %s", err.Error())
 			handleError(err, w)
 			return
 		}
 		sigolo.Debug("Wrote %d bytes", bytesWritten)
-
 	}
 }
 
