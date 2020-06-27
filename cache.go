@@ -70,8 +70,8 @@ func (c *Cache) get(key string) ([]byte, error) {
 	c.mutex.Lock()
 	content, ok := c.knownValues[hashValue]
 	c.mutex.Unlock()
-	if !ok {
-		sigolo.Debug("Cache doen't know key '%s'", hashValue)
+	if !ok && len(content) > 0 {
+		sigolo.Debug("Cache doesn't know key '%s'", hashValue)
 		return nil, errors.New(fmt.Sprintf("Key '%s' is not known to cache", hashValue))
 	}
 
