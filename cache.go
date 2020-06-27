@@ -102,25 +102,11 @@ func (c *Cache) get(key string) (*io.Reader, error) {
 	return &response, nil
 }
 
-func (c *Cache) put(key string, content *io.Reader) error {
+func (c *Cache) put(key string, content *io.Reader, contentLength int64) error {
 	hashValue := calcHash(key)
 
-	file, err := os.Create(c.folder + hashValue)
-	if err != nil {
-		return err
-	}
-
-	writer := bufio.NewWriter(file)
-	bytesWritten, err := io.Copy(writer, *content)
-	if err != nil {
-		return err
-	}
-
-	// Make sure, that the RAM-cache only holds values we were able to write.
-	// This is a decision to prevent a false impression of the cache: If the
-	// write fails, the cache isn't working correctly, which should be fixed by
-	// the user of this cache.
-	if bytesWritten <= config.MaxCacheItemSize*1024*1024 {
+	// Small enough to put it into the in-memory cache
+	if contentLength <= config.MaxCacheItemSize*1024*1024 {
 		buffer := &bytes.Buffer{}
 		_, err := io.Copy(buffer, *content)
 		if err != nil {
@@ -130,17 +116,35 @@ func (c *Cache) put(key string, content *io.Reader) error {
 		c.mutex.Lock()
 		c.knownValues[hashValue] = buffer.Bytes()
 		c.mutex.Unlock()
-
 		sigolo.Debug("Added %s into in-memory cache", hashValue)
-	} else {
+
+		err = ioutil.WriteFile(c.folder+hashValue, buffer.Bytes(), 0644)
+		if err != nil {
+			return err
+		}
+		sigolo.Debug("Wrote content of entry %s into file", hashValue)
+	} else { // Too large for in-memory cache, just write to file
 		c.mutex.Lock()
 		c.knownValues[hashValue] = nil
 		c.mutex.Unlock()
+		sigolo.Debug("Added nil-entry for %s into in-memory cache", hashValue)
+
+		file, err := os.Create(c.folder + hashValue)
+		if err != nil {
+			return err
+		}
+
+		writer := bufio.NewWriter(file)
+		_, err = io.Copy(writer, *content)
+		if err != nil {
+			return err
+		}
+		sigolo.Debug("Wrote content of entry %s into file", hashValue)
 	}
 
 	sigolo.Debug("Cache wrote content into '%s'", hashValue)
 
-	return err
+	return nil
 }
 
 func calcHash(data string) string {

@@ -91,7 +91,7 @@ func handleGet(w http.ResponseWriter, r *http.Request) {
 		var reader io.Reader
 		reader = response.Body
 
-		err = cache.put(fullUrl, &reader)
+		err = cache.put(fullUrl, &reader, response.ContentLength)
 		if err != nil {
 			handleError(err, w)
 			return
