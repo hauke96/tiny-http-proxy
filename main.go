@@ -74,16 +74,22 @@ func handleGet(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			handleError(err, w)
 		} else {
-			w.Write(content)
+			_, err := io.Copy(w, *content)
+			if err != nil {
+				sigolo.Error("Error writing response: %s", err.Error())
+			}
 		}
-	} else {
+	} else { // Cache miss
 		response, err := client.Get(config.Target + fullUrl)
 		if err != nil {
 			handleError(err, w)
 			return
 		}
 
-		err = cache.put(fullUrl, &response.Body)
+		var reader io.Reader
+		reader = response.Body
+
+		err = cache.put(fullUrl, &reader)
 		if err != nil {
 			handleError(err, w)
 			return
@@ -98,7 +104,8 @@ func handleGet(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		_, err = io.Copy(w, response.Body)
+		content, err := cache.get(fullUrl)
+		_, err = io.Copy(w, *content)
 		if err != nil {
 			handleError(err, w)
 			return

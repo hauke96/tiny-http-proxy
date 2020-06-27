@@ -66,7 +66,8 @@ func (c *Cache) has(key string) bool {
 	return ok
 }
 
-func (c *Cache) get(key string) ([]byte, error) {
+func (c *Cache) get(key string) (*io.Reader, error) {
+	var response io.Reader
 	hashValue := calcHash(key)
 
 	// Try to get content. Error if not found.
@@ -84,21 +85,21 @@ func (c *Cache) get(key string) ([]byte, error) {
 	if content == nil {
 		sigolo.Debug("Cache has content for '%s' already loaded", hashValue)
 
-		content, err := ioutil.ReadFile(c.folder + hashValue)
+		file, err := os.Open(c.folder + hashValue)
 		if err != nil {
 			sigolo.Error("Error reading cached file '%s': %s", hashValue, err)
 			return nil, err
 		}
 
-		c.mutex.Lock()
-		c.knownValues[hashValue] = content
-		c.mutex.Unlock()
+		response = file
+	}else {
+		response = bytes.NewReader(content)
 	}
 
-	return content, nil
+	return &response, nil
 }
 
-func (c *Cache) put(key string, content *io.ReadCloser) error {
+func (c *Cache) put(key string, content *io.Reader) error {
 	hashValue := calcHash(key)
 
 	file, err := os.Create(c.folder + hashValue)
