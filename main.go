@@ -17,6 +17,7 @@ var cache *Cache
 var client *http.Client
 
 func main() {
+	//configureLogging()
 	prepare()
 
 	sigolo.Info("Ready to serve")
@@ -35,8 +36,7 @@ func main() {
 }
 
 func configureLogging() {
-	sigolo.FormatFunctions[sigolo.LOG_INFO] = sigolo.LogPlain
-	//sigolo.LogLevel = sigolo.LOG_DEBUG
+	sigolo.LogLevel = sigolo.LOG_DEBUG
 }
 
 func prepare() {
