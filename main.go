@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"time"
 
@@ -82,22 +82,27 @@ func handleGet(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		body, err := ioutil.ReadAll(response.Body)
-		response.Body.Close()
+		err = cache.put(fullUrl, &response.Body)
+		if err != nil {
+			handleError(err, w)
+			return
+		}
+		defer response.Body.Close()
+
+		// Do not fail. Even if the put failed, the end user would be sad if he
+		// gets an error, even if the proxy alone works.
+		if err != nil {
+			sigolo.Error("Could not write into cache")
+			handleError(err, w)
+			return
+		}
+
+		_, err = io.Copy(w, response.Body)
 		if err != nil {
 			handleError(err, w)
 			return
 		}
 
-		err = cache.put(fullUrl, body)
-
-		// Do not fail. Even if the put failed, the end user would be sad if he
-		// gets an error, even if the proxy alone works.
-		if err != nil {
-			sigolo.Error("Could not write into cache: %s", err)
-		}
-
-		w.Write(body)
 	}
 }
 

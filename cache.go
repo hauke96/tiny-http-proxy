@@ -1,11 +1,14 @@
 package main
 
 import (
+	"bufio"
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"hash"
+	"io"
 	"io/ioutil"
 	"os"
 	"sync"
@@ -95,21 +98,38 @@ func (c *Cache) get(key string) ([]byte, error) {
 	return content, nil
 }
 
-func (c *Cache) put(key string, content []byte) error {
+func (c *Cache) put(key string, content *io.ReadCloser) error {
 	hashValue := calcHash(key)
 
-	err := ioutil.WriteFile(c.folder+hashValue, content, 0644)
+	file, err := os.Create(c.folder + hashValue)
+	if err != nil {
+		return err
+	}
+
+	writer := bufio.NewWriter(file)
+	bytesWritten, err := io.Copy(writer, *content)
+	if err != nil {
+		return err
+	}
 
 	// Make sure, that the RAM-cache only holds values we were able to write.
 	// This is a decision to prevent a false impression of the cache: If the
 	// write fails, the cache isn't working correctly, which should be fixed by
 	// the user of this cache.
-	if err == nil {
-		sigolo.Debug("Cache wrote content into '%s'", hashValue)
+	if bytesWritten <= 5 * 1024 * 1024 {
+		sigolo.Debug("Add %s into in-memory cache", hashValue)
+		buffer := &bytes.Buffer{}
+		_, err := io.Copy(buffer, *content)
+		if err != nil {
+			return err
+		}
+
 		c.mutex.Lock()
-		c.knownValues[hashValue] = content
+		c.knownValues[hashValue] = buffer.Bytes()
 		c.mutex.Unlock()
 	}
+
+	sigolo.Debug("Cache wrote content into '%s'", hashValue)
 
 	return err
 }
