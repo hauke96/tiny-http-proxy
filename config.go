@@ -6,10 +6,11 @@ import (
 )
 
 type Config struct {
-	Target       string `json:"target"`
-	CacheFolder  string `json:"cache_folder"`
-	Port         string `json:"port"`
-	DebugLogging bool   `json:"debug_logging"`
+	Target           string `json:"target"`
+	CacheFolder      string `json:"cache_folder"`
+	Port             string `json:"port"`
+	DebugLogging     bool   `json:"debug_logging"`
+	MaxCacheItemSize int64  `json:"max_cache_item_size"` // in MB
 }
 
 func LoadConfig(path string) (*Config, error) {

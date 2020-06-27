@@ -83,7 +83,7 @@ func (c *Cache) get(key string) (*io.Reader, error) {
 
 	// Key is known, but not loaded into RAM
 	if content == nil {
-		sigolo.Debug("Cache has content for '%s' already loaded", hashValue)
+		sigolo.Debug("Cache item '%s' known but is not stored in memory. Using file.", hashValue)
 
 		file, err := os.Open(c.folder + hashValue)
 		if err != nil {
@@ -92,8 +92,11 @@ func (c *Cache) get(key string) (*io.Reader, error) {
 		}
 
 		response = file
-	}else {
+
+		sigolo.Debug("Create reader from file %s", hashValue)
+	} else {
 		response = bytes.NewReader(content)
+		sigolo.Debug("Create reader from %d byte large cache content", len(content))
 	}
 
 	return &response, nil
@@ -117,9 +120,7 @@ func (c *Cache) put(key string, content *io.Reader) error {
 	// This is a decision to prevent a false impression of the cache: If the
 	// write fails, the cache isn't working correctly, which should be fixed by
 	// the user of this cache.
-	// TODO make cache element size configurable
-	if bytesWritten <= 5 * 1024 * 1024 {
-		sigolo.Debug("Add %s into in-memory cache", hashValue)
+	if bytesWritten <= config.MaxCacheItemSize*1024*1024 {
 		buffer := &bytes.Buffer{}
 		_, err := io.Copy(buffer, *content)
 		if err != nil {
@@ -128,6 +129,12 @@ func (c *Cache) put(key string, content *io.Reader) error {
 
 		c.mutex.Lock()
 		c.knownValues[hashValue] = buffer.Bytes()
+		c.mutex.Unlock()
+
+		sigolo.Debug("Added %s into in-memory cache", hashValue)
+	} else {
+		c.mutex.Lock()
+		c.knownValues[hashValue] = nil
 		c.mutex.Unlock()
 	}
 

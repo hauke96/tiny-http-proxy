@@ -107,11 +107,12 @@ func handleGet(w http.ResponseWriter, r *http.Request) {
 		}
 
 		content, err := cache.get(fullUrl)
-		_, err = io.Copy(w, *content)
+		bytesWritten, err := io.Copy(w, *content)
 		if err != nil {
 			handleError(err, w)
 			return
 		}
+		sigolo.Debug("Wrote %d bytes", bytesWritten)
 
 	}
 }
