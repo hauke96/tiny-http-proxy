@@ -41,6 +41,8 @@ All the configuration is done in the `tiny.json` file. This is a simple JSON-fil
 | `port` | `string` | The port this server is listening to. |
 | `target` | `string` | The target host every request should be routed to. |
 | `cache_folder` | `string` | The folder where the cache files are stored. This folder must exist and must be writable. |
+| `debug_logging` | `bool` | When set to true, more detailed log output is printed. |
+| `max_cache_item_size` | `int` | Maximum size in MB for the in-memory cache. Larger files are only cached on disk, smaller files are also cached directly within the memory. |
 
 # Usage
 If you normally go to `http://foo.com/bar?request=test` then now go to `http://localhost:8080/bar?request=test` (assumed there's a correct configuration).
