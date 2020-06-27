@@ -116,6 +116,7 @@ func (c *Cache) put(key string, content *io.ReadCloser) error {
 	// This is a decision to prevent a false impression of the cache: If the
 	// write fails, the cache isn't working correctly, which should be fixed by
 	// the user of this cache.
+	// TODO make cache element size configurable
 	if bytesWritten <= 5 * 1024 * 1024 {
 		sigolo.Debug("Add %s into in-memory cache", hashValue)
 		buffer := &bytes.Buffer{}

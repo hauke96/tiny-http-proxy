@@ -17,6 +17,7 @@ var cache *Cache
 var client *http.Client
 
 func main() {
+	// TODO make debug logging configurable
 	//configureLogging()
 	prepare()
 
