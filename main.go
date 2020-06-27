@@ -17,11 +17,14 @@ var cache *Cache
 var client *http.Client
 
 func main() {
-	// TODO make debug logging configurable
-	//configureLogging()
-	prepare()
+	loadConfig()
+	if config.DebugLogging {
+		sigolo.LogLevel = sigolo.LOG_DEBUG
+	}
+	sigolo.Debug("Config loaded")
 
-	sigolo.Info("Ready to serve")
+	prepare()
+	sigolo.Debug("Cache initialized")
 
 	server := &http.Server{
 		Addr:         ":" + config.Port,
@@ -30,26 +33,25 @@ func main() {
 		Handler:      http.HandlerFunc(handleGet),
 	}
 
+	sigolo.Info("Start serving...")
 	err := server.ListenAndServe()
 	if err != nil {
 		sigolo.Fatal(err.Error())
 	}
 }
 
-func configureLogging() {
-	sigolo.LogLevel = sigolo.LOG_DEBUG
+func loadConfig() {
+	var err error
+
+	config, err = LoadConfig(configPath)
+	if err != nil {
+		sigolo.Fatal("Could not read config: '%s'", err.Error())
+	}
 }
 
 func prepare() {
 	var err error
 
-	sigolo.Info("Load config")
-	config, err = LoadConfig(configPath)
-	if err != nil {
-		sigolo.Fatal("Could not read config: '%s'", err.Error())
-	}
-
-	sigolo.Info("Init cache")
 	cache, err = CreateCache(config.CacheFolder)
 
 	if err != nil {
