@@ -69,7 +69,8 @@ func handleGet(w http.ResponseWriter, r *http.Request) {
 	sigolo.Info("Requested '%s'", fullUrl)
 
 	// Cache miss -> Load data from requested URL and add to cache
-	if !cache.has(fullUrl) {
+	if busy, ok := cache.has(fullUrl); !ok {
+		defer busy.Unlock()
 		response, err := client.Get(config.Target + fullUrl)
 		if err != nil {
 			handleError(err, w)
