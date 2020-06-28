@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"hash"
 	"io"
@@ -20,6 +19,7 @@ type Cache struct {
 	folder      string
 	hash        hash.Hash
 	knownValues map[string][]byte
+	busyValues  map[string]*sync.Mutex
 	mutex       *sync.Mutex
 }
 
@@ -32,6 +32,7 @@ func CreateCache(path string) (*Cache, error) {
 	}
 
 	values := make(map[string][]byte, 0)
+	busy := make(map[string]*sync.Mutex, 0)
 
 	// Go through every file an save its name in the map. The content of the file
 	// is loaded when needed. This makes sure that we don't have to read
@@ -50,20 +51,46 @@ func CreateCache(path string) (*Cache, error) {
 		folder:      path,
 		hash:        hash,
 		knownValues: values,
+		busyValues:  busy,
 		mutex:       mutex,
 	}
 
 	return cache, nil
 }
 
-func (c *Cache) has(key string) bool {
+// Returns true if the resource is found, and false otherwise. If the
+// resource is busy, this method will hang until the resource is free. If
+// the resource is not found, a lock indicating that the resource is busy will
+// be returned. Once the resource has been put into cache the busy lock *must*
+// be unlocked to allow others to access the newly cached resource
+func (c *Cache) has(key string) (*sync.Mutex, bool) {
 	hashValue := calcHash(key)
 
 	c.mutex.Lock()
-	_, ok := c.knownValues[hashValue]
-	c.mutex.Unlock()
+	defer c.mutex.Unlock()
 
-	return ok
+	// If the resource is busy, wait for it to be free. This is the case if
+	// the resource is currently being cached as a result of another request.
+	// Also, release the lock on the cache to allow other readers while waiting
+	if lock, busy := c.busyValues[hashValue]; busy {
+		c.mutex.Unlock()
+		lock.Lock()
+		lock.Unlock()
+		c.mutex.Lock()
+	}
+
+	// If a resource is in the shared cache, it can't be reserved. One can simply
+	// access it directly from the cache
+	if _, found := c.knownValues[hashValue]; found {
+		return nil, true
+	}
+
+	// The resource is not in the cache, mark the resource as busy until it has
+	// been cached successfully. Unlocking lock is required!
+	lock := new(sync.Mutex)
+	lock.Lock()
+	c.busyValues[hashValue] = lock
+	return lock, false
 }
 
 func (c *Cache) get(key string) (*io.Reader, error) {
@@ -76,7 +103,7 @@ func (c *Cache) get(key string) (*io.Reader, error) {
 	c.mutex.Unlock()
 	if !ok && len(content) > 0 {
 		sigolo.Debug("Cache doesn't know key '%s'", hashValue)
-		return nil, errors.New(fmt.Sprintf("Key '%s' is not known to cache", hashValue))
+		return nil, fmt.Errorf("Key '%s' is not known to cache", hashValue)
 	}
 
 	sigolo.Debug("Cache has key '%s'", hashValue)
@@ -102,6 +129,16 @@ func (c *Cache) get(key string) (*io.Reader, error) {
 	return &response, nil
 }
 
+// release is an internal method which atomically caches an item and unmarks
+// the item as busy, if it was busy before. The busy lock *must* be unlocked
+// elsewhere!
+func (c *Cache) release(hashValue string, content []byte) {
+	c.mutex.Lock()
+	delete(c.busyValues, hashValue)
+	c.knownValues[hashValue] = content
+	c.mutex.Unlock()
+}
+
 func (c *Cache) put(key string, content *io.Reader, contentLength int64) error {
 	hashValue := calcHash(key)
 
@@ -113,9 +150,7 @@ func (c *Cache) put(key string, content *io.Reader, contentLength int64) error {
 			return err
 		}
 
-		c.mutex.Lock()
-		c.knownValues[hashValue] = buffer.Bytes()
-		c.mutex.Unlock()
+		defer c.release(hashValue, buffer.Bytes())
 		sigolo.Debug("Added %s into in-memory cache", hashValue)
 
 		err = ioutil.WriteFile(c.folder+hashValue, buffer.Bytes(), 0644)
@@ -124,9 +159,7 @@ func (c *Cache) put(key string, content *io.Reader, contentLength int64) error {
 		}
 		sigolo.Debug("Wrote content of entry %s into file", hashValue)
 	} else { // Too large for in-memory cache, just write to file
-		c.mutex.Lock()
-		c.knownValues[hashValue] = nil
-		c.mutex.Unlock()
+		defer c.release(hashValue, nil)
 		sigolo.Debug("Added nil-entry for %s into in-memory cache", hashValue)
 
 		file, err := os.Create(c.folder + hashValue)
