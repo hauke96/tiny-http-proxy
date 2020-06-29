@@ -23,6 +23,6 @@ func NewFile(path string) Source {
 }
 
 // Open returns a new reader for the file by opening the file in read only mode.
-func (s File) Open() (io.Reader, error) {
-	return os.Open(s.Name())
+func (f File) Open() (io.Reader, error) {
+	return os.Open(f.Name())
 }

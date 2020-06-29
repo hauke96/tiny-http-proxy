@@ -55,15 +55,15 @@ type streamReader struct {
 
 // NewReader returns a new reader for the stream. May be called multiple times
 // and each reader may read from the stream concurrently
-func (m *Stream) NewReader() (io.Reader, error) {
-	r, err := m.Open()
+func (s *Stream) NewReader() (io.Reader, error) {
+	r, err := s.Open()
 
 	if err != nil {
 		return nil, err
 	}
 
 	return &streamReader{
-		stream: m,
+		stream: s,
 		reader: r,
 	}, nil
 }
@@ -100,22 +100,22 @@ func (s *streamReader) Read(p []byte) (n int, err error) {
 	return
 }
 
-func (m *Stream) Write(data []byte) (int, error) {
-	defer m.cond.Broadcast()
-	return m.writer.Write(data)
+func (s *Stream) Write(data []byte) (int, error) {
+	defer s.cond.Broadcast()
+	return s.writer.Write(data)
 }
 
 // CloseWrite is called when the writer declares the end of the stream.
 // This is a clear indication for readers, that no more data will be written to
 // the stream. Following this call, readers will begin receiving EOF on calls to
 // read. Readers may still join the stream after the stream is closed
-func (m *Stream) CloseWrite() error {
-	m.cond.L.Lock()
-	defer m.cond.L.Unlock()
-	defer m.cond.Broadcast()
-	if m.closed {
+func (s *Stream) CloseWrite() error {
+	s.cond.L.Lock()
+	defer s.cond.L.Unlock()
+	defer s.cond.Broadcast()
+	if s.closed {
 		return errors.New("Multireader closed multiple times")
 	}
-	m.closed = true
+	s.closed = true
 	return nil
 }

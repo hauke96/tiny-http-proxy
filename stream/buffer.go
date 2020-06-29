@@ -32,28 +32,28 @@ func NewBuffer() Source {
 
 // Open returns a new reader into Buffer. Open may be called multiple times to
 // retrieve multiple readers. All readers may read concurrently
-func (s *Buffer) Open() (io.Reader, error) {
+func (b *Buffer) Open() (io.Reader, error) {
 	return &bufferReader{
-		buffer: s,
+		buffer: b,
 		i:      0,
 	}, nil
 }
 
-func (s *bufferReader) Read(b []byte) (n int, err error) {
-	s.buffer.rw.RLock()
-	defer s.buffer.rw.RUnlock()
-	if s.i >= int64(len(s.buffer.buf)) {
+func (b *bufferReader) Read(dst []byte) (n int, err error) {
+	b.buffer.rw.RLock()
+	defer b.buffer.rw.RUnlock()
+	if b.i >= int64(len(b.buffer.buf)) {
 		// No more data. Return EOF, Stream will wait for next write op
 		return 0, io.EOF
 	}
-	n = copy(b, s.buffer.buf[s.i:])
-	s.i += int64(n)
-	return
+	n = copy(dst, b.buffer.buf[b.i:])
+	b.i += int64(n)
+	return n, nil
 }
 
-func (s *Buffer) Write(b []byte) (n int, err error) {
-	s.rw.Lock()
-	defer s.rw.Unlock()
-	s.buf = append(s.buf, b...)
-	return len(b), nil
+func (b *Buffer) Write(src []byte) (n int, err error) {
+	b.rw.Lock()
+	defer b.rw.Unlock()
+	b.buf = append(b.buf, src...)
+	return len(src), nil
 }
