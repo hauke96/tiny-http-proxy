@@ -10,7 +10,9 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"regexp"
 	"sync"
+	"time"
 
 	"github.com/hauke96/sigolo"
 )
@@ -18,9 +20,14 @@ import (
 type Cache struct {
 	folder      string
 	hash        hash.Hash
-	knownValues map[string][]byte
+	knownValues map[string]KnownValues
 	busyValues  map[string]*sync.Mutex
 	mutex       *sync.Mutex
+}
+
+type KnownValues struct {
+	loadedAt time.Time
+	content  []byte
 }
 
 func CreateCache(path string) (*Cache, error) {
@@ -31,7 +38,7 @@ func CreateCache(path string) (*Cache, error) {
 		os.Mkdir(path, os.ModePerm)
 	}
 
-	values := make(map[string][]byte, 0)
+	values := make(map[string]KnownValues, 0)
 	busy := make(map[string]*sync.Mutex, 0)
 
 	// Go through every file an save its name in the map. The content of the file
@@ -39,7 +46,7 @@ func CreateCache(path string) (*Cache, error) {
 	// the directory content each time the user wants data that's not yet loaded.
 	for _, info := range fileInfos {
 		if !info.IsDir() {
-			values[info.Name()] = nil
+			values[info.Name()] = KnownValues{}
 		}
 	}
 
@@ -93,24 +100,35 @@ func (c *Cache) has(key string) (*sync.Mutex, bool) {
 	return lock, false
 }
 
-func (c *Cache) get(key string) (*io.Reader, error) {
+func (c *Cache) get(requestedURL string) (*io.Reader, error) {
 	var response io.Reader
-	hashValue := calcHash(key)
+	cacheURL, err := removeSchemeFromURL(requestedURL)
+	if err != nil {
+		return nil, err
+	}
+	hashValue := calcHash(cacheURL)
 
 	// Try to get content. Error if not found.
 	c.mutex.Lock()
-	content, ok := c.knownValues[hashValue]
+	KnownValue, ok := c.knownValues[hashValue]
+	content := KnownValue.content
 	c.mutex.Unlock()
 	if !ok && len(content) > 0 {
 		sigolo.Debug("Cache doesn't know key '%s'", hashValue)
 		return nil, fmt.Errorf("Key '%s' is not known to cache", hashValue)
 	}
 
-	sigolo.Debug("Cache has key '%s'", hashValue)
+	sigolo.Debug("requested URL '%s' has cache key '%s'", requestedURL, hashValue)
 
 	// Key is known, but not loaded into RAM
 	if content == nil {
-		sigolo.Debug("Cache item '%s' known but is not stored in memory. Using file.", hashValue)
+		sigolo.Debug("Cache item '%s' known but is not stored in memory. Reading from file.", hashValue)
+
+		// check if Cache is too old based on mtime, if so call getRemote() and renew cache
+		err := checkCacheTTL(c.folder+hashValue, cacheURL, requestedURL)
+		if err != nil {
+			return nil, err
+		}
 
 		file, err := os.Open(c.folder + hashValue)
 		if err != nil {
@@ -118,12 +136,23 @@ func (c *Cache) get(key string) (*io.Reader, error) {
 			return nil, err
 		}
 
-		response = file
+		fi, err := file.Stat()
+		if err != nil {
+			sigolo.Error("Error stating cached file '%s': %s", hashValue, err)
+			return nil, err
+		}
 
-		sigolo.Debug("Create reader from file %s", hashValue)
+		response = file
+		promSummaries["CACHE_READ_FILE"].Observe(float64(fi.Size()))
+
 	} else { // Key is known and data is already loaded to RAM
+		// check if Cache is too old based on mtime, if so call getRemote() and renew cache
+		err := checkCacheTTL(c.folder+hashValue, cacheURL, requestedURL)
+		if err != nil {
+			return nil, err
+		}
 		response = bytes.NewReader(content)
-		sigolo.Debug("Create reader from %d byte large cache content", len(content))
+		promSummaries["CACHE_READ_MEMORY"].Observe(float64(len(content)))
 	}
 
 	return &response, nil
@@ -132,10 +161,10 @@ func (c *Cache) get(key string) (*io.Reader, error) {
 // release is an internal method which atomically caches an item and unmarks
 // the item as busy, if it was busy before. The busy lock *must* be unlocked
 // elsewhere!
-func (c *Cache) release(hashValue string, content []byte) {
+func (c *Cache) release(hashValue string, content []byte, loadedAt time.Time) {
 	c.mutex.Lock()
 	delete(c.busyValues, hashValue)
-	c.knownValues[hashValue] = content
+	c.knownValues[hashValue] = KnownValues{content: content, loadedAt: loadedAt}
 	c.mutex.Unlock()
 }
 
@@ -150,7 +179,7 @@ func (c *Cache) put(key string, content *io.Reader, contentLength int64) error {
 			return err
 		}
 
-		defer c.release(hashValue, buffer.Bytes())
+		defer c.release(hashValue, buffer.Bytes(), time.Now())
 		sigolo.Debug("Added %s into in-memory cache", hashValue)
 
 		err = ioutil.WriteFile(c.folder+hashValue, buffer.Bytes(), 0644)
@@ -159,7 +188,7 @@ func (c *Cache) put(key string, content *io.Reader, contentLength int64) error {
 		}
 		sigolo.Debug("Wrote content of entry %s into file", hashValue)
 	} else { // Too large for in-memory cache, just write to file
-		defer c.release(hashValue, nil)
+		defer c.release(hashValue, nil, time.Now())
 		sigolo.Debug("Added nil-entry for %s into in-memory cache", hashValue)
 
 		file, err := os.Create(c.folder + hashValue)
@@ -183,4 +212,44 @@ func (c *Cache) put(key string, content *io.Reader, contentLength int64) error {
 func calcHash(data string) string {
 	sha := sha256.Sum256([]byte(data))
 	return hex.EncodeToString(sha[:])
+}
+
+func checkCacheTTL(filePath string, cacheURL string, requestedURL string) error {
+	fi, err := os.Stat(filePath)
+	if err != nil {
+		return err
+	}
+	mtime := fi.ModTime()
+
+	ttl := config.DefaultCacheTTL
+	for name, cr := range config.CacheRules {
+		r := regexp.MustCompile(cr.Regex)
+		// sigolo.Debug("comparing regex rule: '%s' with regex '%s' with cacheURL: '%s'", name, cr.Regex, cacheURL)
+		if r.MatchString(cacheURL) {
+			sigolo.Debug("found matching regex rule: '%s' with regex '%s' and ttl '%s' for cacheURL: '%s'", name, cr.Regex, cr.TTL, cacheURL)
+			ttl = cr.TTL
+			// sigolo.Debug("setting ttl to '%s' for file '%s'", ttl, cacheURL)
+			break
+		}
+	}
+
+	sigolo.Debug("using cache TTL '%s' for file: '%s'", ttl, cacheURL)
+	validUntil := mtime.Add(ttl)
+
+	//valid := time.Now().AddDate(1, 0, 0)
+	//fmt.Println(validUntil)
+	// sigolo.Info("cacheURL:", cacheURL)
+	// sigolo.Info("requestedURL:", requestedURL)
+	if time.Now().After(validUntil) {
+		sigolo.Info("CACHE_TOO_OLD for requested URL '%s'", cacheURL)
+		promCounters["CACHE_TOO_OLD"].Inc()
+		err := GetRemote(requestedURL)
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+	sigolo.Info("CACHE_OK until '%s'/'%s' for requested URL '%s'", time.Until(validUntil), validUntil.Format("2006-01-02 15:04:05"), cacheURL)
+	promCounters["CACHE_OK"].Inc()
+	return nil
 }

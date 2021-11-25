@@ -1,7 +1,0 @@
-{
-	"port": "8080",
-	"target": "https://imgs.xkcd.com/",
-	"cache_folder": "./cache/",
-	"debug_logging": true,
-	"max_cache_item_size": 5
-}
