@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"io"
 	"net/http"
@@ -9,15 +10,16 @@ import (
 	"github.com/hauke96/sigolo"
 )
 
-const configPath = "./tiny.json"
-
 var config *Config
 var cache *Cache
 
 var client *http.Client
 
 func main() {
-	loadConfig()
+	configPath := flag.String("config", "./tiny.json", "configuration .json file path")
+	flag.Parse()
+
+	loadConfig(*configPath)
 	if config.DebugLogging {
 		sigolo.LogLevel = sigolo.LOG_DEBUG
 	}
@@ -40,7 +42,7 @@ func main() {
 	}
 }
 
-func loadConfig() {
+func loadConfig(configPath string) {
 	var err error
 
 	config, err = LoadConfig(configPath)
