@@ -5,15 +5,15 @@ The tiny-http-proxy acts as a reverse proxy for one server of your choice illust
 
 ```
            network            proxy             cache
-         .---------.       .---------.       .---------.
-    <----|- - < - -|---<---|- - < - -|---<---|- < -.   |
-you ---->|- - > - -|--->---|- -,- > -|--->---|- > -|   |
-         |         |       |   |(*)  |       |     |   |
-         |    ,-< -|---<---|< -'     |       |     |   |
-         |    , ,->|--->---|- - > - -|--->---|- > -'   |
-         `----+-+--´       `---------´       `---------´
-              ' '
-              '_'
+         .—————————.       .—————————.       .—————————.
+    <————|— — < — —|———<———|— — < — —|———<———|— < —.—. |
+you ————>|— — > — —|———>———|— —.— > —|———>———|— > —' | |
+         |         |       |   |(*)  |       |       | |
+         |    ,—< —|———<———|< —'     |       |       | |
+         |    | ,—>|———>———|— — > — —|———>———|— > ———' |
+         `————+—+——´       `—————————´       `—————————´
+              | |
+              '—'
             website
 
 (*) When the data is not in the cache, the website will be requested and is directly stored in the cache.
@@ -29,11 +29,20 @@ cd tiny-http-proxy
 mkdir cache
 go run *.go
 ```
-Of course you can also use the [ZIP-archive](https://github.com/hauke96/tiny-http-proxy/archive/master.zip) if you don't have git installed.
+Alternative to the `go run` command you can also use `make run` as well as `make build` which uses additional build parameters for e.g. a smaller artifact size.
+
+Of course, you can also use the [ZIP-archive](https://github.com/hauke96/tiny-http-proxy/archive/master.zip) if you don't have git installed.
 
 Instead of `mkdir cache`, you have to make sure that the folder you'll configure later exists.
 
-# Configuration
+# CLI arguments
+
+| Parameter | Description |
+|:---|:---|
+| `--help`, `-h` | Show this list of available parameters |
+| `-config my-config.json` | Uses the file `my-config.json` as configuration file. Default value is `./tiny.json`.
+
+# Configuration file
 All the configuration is done in the `tiny.json` file. This is a simple JSON-file with some properties that should be set by you:
 
 | Property | Type | Description |
