@@ -56,7 +56,7 @@ All the configuration is done in the `tiny.json` file. This is a simple JSON-fil
 # Usage
 If you normally go to `http://foo.com/bar?request=test` then now go to `http://localhost:8080/bar?request=test` (assumed there's a correct configuration).
 
-# Exmaples
+# Examples
 ## With the given config
 The current configuration caches requests to `https://imgs.xkcd.com`. So just start the proxy and go to e.g.:
 
