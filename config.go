@@ -3,26 +3,32 @@ package main
 import (
 	"io/ioutil"
 	"net/url"
+	"path/filepath"
 	"time"
 
-	"github.com/hauke96/sigolo"
+	olo "github.com/xorpaul/sigolo"
 	yaml "gopkg.in/yaml.v2"
 )
 
 type Config struct {
-	Debug                 bool                    `yaml:"debug"`
-	ListenAddress         string                  `yaml:"listen_address"`
-	ListenPort            int                     `yaml:"listen_port"`
-	ListenSSLPort         int                     `yaml:"listen_ssl_port"`
-	PrivateKey            string                  `yaml:"ssl_private_key"`
-	CertificateFile       string                  `yaml:"ssl_certificate_file"`
-	Proxy                 string                  `yaml:"proxy"`
-	ProxyURL              *url.URL                `yaml:"proxyURL"`
-	CacheFolder           string                  `yaml:"cache_folder"`
-	DefaultCacheTTLString string                  `yaml:"default_cache_ttl"`
-	DefaultCacheTTL       time.Duration           `yaml:"default_cache_ttlDuration"`
-	MaxCacheItemSize      int64                   `yaml:"max_cache_item_size_in_mb"`
-	CacheRules            map[string]CachingRules `yaml:"caching_rules"`
+	Debug                    bool                    `yaml:"debug"`
+	SkipTimestampLog         bool                    `yaml:"skip_timestamp_log"`
+	EnableColors             bool                    `yaml:"enable_log_colors"`
+	ListenAddress            string                  `yaml:"listen_address"`
+	ListenPort               int                     `yaml:"listen_port"`
+	ListenSSLPort            int                     `yaml:"listen_ssl_port"`
+	Timeout                  int                     `yaml:"timeout_in_s"`
+	PrivateKey               string                  `yaml:"ssl_private_key"`
+	CertificateFile          string                  `yaml:"ssl_certificate_file"`
+	Proxy                    string                  `yaml:"proxy"`
+	ProxyURL                 *url.URL                `yaml:"proxyURL"`
+	CacheFolder              string                  `yaml:"cache_folder"`
+	DefaultCacheTTLString    string                  `yaml:"default_cache_ttl"`
+	DefaultCacheTTL          time.Duration           `yaml:"default_cache_ttlDuration"`
+	MaxCacheItemSize         int64                   `yaml:"max_cache_item_size_in_mb"`
+	CacheRules               map[string]CachingRules `yaml:"caching_rules"`
+	ReturnCacheIfRemoteFails bool                    `yaml:"return_cache_if_remote_fails"`
+	PrometheusMetricPrefix   string                  `yaml:"prometheus_metric_prefix"`
 }
 
 type CachingRules struct {
@@ -45,13 +51,21 @@ func LoadConfig(path string) (*Config, error) {
 		return nil, err
 	}
 
+	if config.SkipTimestampLog {
+		olo.SkipTimestamp = true
+	}
+
+	if config.EnableColors {
+		olo.EnableColors = true
+	}
+
 	for name, cr := range config.CacheRules {
-		sigolo.Info("adding caching rule '%s': regex:'%s' ttl:'%s'", name, cr.Regex, cr.TTLString)
+		olo.Info("adding caching rule '%s': regex:'%s' ttl:'%s'", name, cr.Regex, cr.TTLString)
 		cr.TTL, err = time.ParseDuration(cr.TTLString)
 		if err != nil {
 			return nil, err
 		}
-		sigolo.Info("setting ttl to '%s' for regex '%s'", cr.TTL, cr.Regex)
+		olo.Info("setting ttl to '%s' for regex '%s'", cr.TTL, cr.Regex)
 		config.CacheRules[name] = cr
 	}
 
@@ -65,7 +79,13 @@ func LoadConfig(path string) (*Config, error) {
 		return nil, err
 	}
 
-	sigolo.Debug("using config settings: %+v", config)
+	// make sure we have the absolute path for the cache dir
+	config.CacheFolder, err = filepath.Abs(config.CacheFolder)
+	if err != nil {
+		return nil, err
+	}
+
+	olo.Debug("using config settings: %+v", config)
 
 	return &config, nil
 }
