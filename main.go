@@ -15,6 +15,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
+	h "github.com/xorpaul/gohelper"
 	olo "github.com/xorpaul/sigolo"
 )
 
@@ -149,7 +150,12 @@ func prepare() {
 
 func handleGet(w http.ResponseWriter, r *http.Request) {
 	promCounters["TOTAL_REQUESTS"].Inc()
-	olo.Info("Incoming request '%s' from '%s'", r.URL.Path, r.RemoteAddr)
+	requesterIP, err := h.GetRequestClientIp(r, config.ProxyNetworks)
+	if err != nil {
+		handleError(nil, err, w)
+		return
+	}
+	olo.Info("Incoming request '%s' from '%s'", r.URL.Path, requesterIP)
 	protocol := "http://"
 	if r.TLS != nil {
 		promCounters["TOTAL_HTTPS_REQUESTS"].Inc()
@@ -158,13 +164,13 @@ func handleGet(w http.ResponseWriter, r *http.Request) {
 		promCounters["TOTAL_HTTP_REQUESTS"].Inc()
 	}
 	cacheURL := strings.TrimLeft(r.URL.Path, "/")
-	err := validateCacheURL(cacheURL)
+	err = validateCacheURL(cacheURL)
 	if err != nil {
 		handleError(nil, err, w)
 		return
 	}
 	fullUrl := protocol + cacheURL
-	olo.Info("Full incoming request for '%s' from '%s'", fullUrl, r.RemoteAddr)
+	olo.Info("Full incoming request for '%s' from '%s'", fullUrl, requesterIP)
 
 	requestedURLParts := strings.Split(cacheURL, "/")
 	if len(requestedURLParts) > 1 {
