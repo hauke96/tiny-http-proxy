@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -181,12 +182,16 @@ func (c *Cache) release(requestedURL string, content []byte, loadedAt time.Time)
 
 func (c *Cache) put(cacheURL string, content *io.Reader, contentLength int64) error {
 	// make sure cache directories exist
-	fileCacheDir := filepath.Dir(filepath.Join(c.folder, cacheURL))
+	urlParts := strings.SplitN(cacheURL, "/", 2)
+	fileCacheDir := filepath.Dir(filepath.Join(c.folder, urlParts[0]))
 	_, err := h.CheckDirAndCreate(fileCacheDir, "Cache.put")
 	if err != nil {
 		olo.Fatal("Cache.put(): while trying to serve cacheURL %s : Error: %s", cacheURL, err.Error())
 		return err
 	}
+
+	uriEncoded := url.QueryEscape(urlParts[1])
+	cacheFile := filepath.Join(fileCacheDir, uriEncoded)
 
 	if contentLength <= config.MaxCacheItemSize*1024*1024 {
 		// Small enough to put it into the in-memory cache
@@ -199,20 +204,16 @@ func (c *Cache) put(cacheURL string, content *io.Reader, contentLength int64) er
 		defer c.release(cacheURL, buffer.Bytes(), time.Now())
 		olo.Debug("Added %s into in-memory cache", cacheURL)
 
-		err = ensureDir(filepath.Join(c.folder, cacheURL))
+		err = ioutil.WriteFile(cacheFile, buffer.Bytes(), 0644)
 		if err != nil {
 			return err
 		}
-		err = ioutil.WriteFile(c.folder+cacheURL, buffer.Bytes(), 0644)
-		if err != nil {
-			return err
-		}
-		olo.Debug("Wrote content of entry %s into file", cacheURL)
+		olo.Debug("Wrote content of entry %s into file %s", cacheURL, cacheFile)
 	} else {
 		// Too large for in-memory cache, just write to file
 		defer c.release(cacheURL, nil, time.Now())
 
-		file, err := os.Create(c.folder + cacheURL)
+		file, err := os.Create(cacheFile) {
 		if err != nil {
 			return err
 		}
@@ -222,7 +223,7 @@ func (c *Cache) put(cacheURL string, content *io.Reader, contentLength int64) er
 		if err != nil {
 			return err
 		}
-		olo.Debug("Wrote content of entry %s into file", cacheURL)
+		olo.Debug("Wrote content of entry %s into file %s", cacheURL)
 	}
 
 	olo.Debug("Cache wrote content into '%s'", cacheURL)
