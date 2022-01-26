@@ -2,22 +2,26 @@ package main
 
 import (
 	"io/ioutil"
+	"net"
 	"net/url"
 	"path/filepath"
 	"time"
 
+	h "github.com/xorpaul/gohelper"
 	olo "github.com/xorpaul/sigolo"
 	yaml "gopkg.in/yaml.v2"
 )
 
 type Config struct {
-	Debug                    bool                    `yaml:"debug"`
-	SkipTimestampLog         bool                    `yaml:"skip_timestamp_log"`
-	EnableColors             bool                    `yaml:"enable_log_colors"`
-	ListenAddress            string                  `yaml:"listen_address"`
-	ListenPort               int                     `yaml:"listen_port"`
-	ListenSSLPort            int                     `yaml:"listen_ssl_port"`
-	Timeout                  int                     `yaml:"timeout_in_s"`
+	Debug                    bool     `yaml:"debug"`
+	SkipTimestampLog         bool     `yaml:"skip_timestamp_log"`
+	EnableColors             bool     `yaml:"enable_log_colors"`
+	ListenAddress            string   `yaml:"listen_address"`
+	ListenPort               int      `yaml:"listen_port"`
+	ListenSSLPort            int      `yaml:"listen_ssl_port"`
+	Timeout                  int      `yaml:"timeout_in_s"`
+	ProxyNetworkStrings      []string `yaml:"reverse_proxy_networks"`
+	ProxyNetworks            []net.IPNet
 	PrivateKey               string                  `yaml:"ssl_private_key"`
 	CertificateFile          string                  `yaml:"ssl_certificate_file"`
 	Proxy                    string                  `yaml:"proxy"`
@@ -57,6 +61,11 @@ func LoadConfig(path string) (*Config, error) {
 
 	if config.EnableColors {
 		olo.EnableColors = true
+	}
+
+	config.ProxyNetworks, err = h.ParseNetworks(config.ProxyNetworkStrings, "in reverse_proxy_networks")
+	if err != nil {
+		return nil, err
 	}
 
 	for name, cr := range config.CacheRules {
