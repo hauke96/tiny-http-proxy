@@ -35,10 +35,14 @@ type CacheResponse struct {
 }
 
 func CreateCache(cacheFolder string) (*Cache, error) {
-	cacheFolder = h.CheckDirAndCreate(cacheFolder, "CreateCache")
+	cacheFolder, err := h.CheckDirAndCreate(cacheFolder, "CreateCache")
+	if err != nil {
+		olo.Fatal("Cache.CreateCache(): Error: %s", err.Error())
+		return nil, err
+	}
 
-	busy := make(map[string]*sync.Mutex, 0)
-	memory := make(map[string]CacheMemoryItem, 0)
+	busy := make(map[string]*sync.Mutex)
+	memory := make(map[string]CacheMemoryItem)
 
 	// Go through every file an save its name in the map. The content of the file
 	// is loaded when needed. This makes sure that we don't have to read
@@ -178,7 +182,11 @@ func (c *Cache) release(requestedURL string, content []byte, loadedAt time.Time)
 func (c *Cache) put(cacheURL string, content *io.Reader, contentLength int64) error {
 	// make sure cache directories exist
 	fileCacheDir := filepath.Dir(filepath.Join(c.folder, cacheURL))
-	_ = h.CheckDirAndCreate(fileCacheDir, "Cache.put")
+	_, err := h.CheckDirAndCreate(fileCacheDir, "Cache.put")
+	if err != nil {
+		olo.Fatal("Cache.put(): while trying to serve cacheURL %s : Error: %s", cacheURL, err.Error())
+		return err
+	}
 
 	if contentLength <= config.MaxCacheItemSize*1024*1024 {
 		// Small enough to put it into the in-memory cache
