@@ -55,8 +55,13 @@ func CreateCache(cacheFolder string) (*Cache, error) {
 		// removing cache dir from path
 		olo.Debug("path: %s", path)
 		cachedItem := strings.TrimPrefix(path, cacheFolder)
-		memory[cachedItem] = CacheMemoryItem{}
+		cachedItem, err = url.QueryUnescape(cachedItem)
+		if err != nil {
+			olo.Fatal("CreateCache(): while url decode file from cache %s Error: %s", path, err.Error())
+			return err
+		}
 		olo.Debug("adding to cache: %s", cachedItem)
+		memory[cachedItem] = CacheMemoryItem{}
 
 		return nil
 	}
@@ -132,25 +137,30 @@ func (c *Cache) get(requestedURL string) (CacheResponse, error) {
 		return CacheResponse{}, fmt.Errorf("cache item '%s' is not known", cacheURL)
 	}
 
+	urlParts := strings.SplitN(cacheURL, "/", 2)
+	fileCacheDir := filepath.Join(c.folder, urlParts[0])
+	uriEncoded := url.QueryEscape(urlParts[1])
+	cacheFile := filepath.Join(fileCacheDir, uriEncoded)
+
 	// check if Cache is too old based on mtime, if so call getRemote() and renew cache
-	err = checkCacheTTL(c.folder+cacheURL, cacheURL, requestedURL)
+	err = checkCacheTTL(cacheFile, cacheURL, requestedURL)
 	if err != nil {
 		return CacheResponse{}, err
 	}
 
 	// Key is known, but not found in-memory, read from file
 	if cacheMemoryItem.content == nil {
-		olo.Debug("Cache item '%s' known but is not stored in memory. Reading from file: %s", cacheURL, filepath.Join(c.folder, cacheURL))
+		olo.Debug("Cache item '%s' known but is not stored in memory. Reading from file: %s", cacheURL, cacheFile)
 
-		file, err := os.Open(filepath.Join(c.folder, cacheURL))
+		file, err := os.Open(cacheFile)
 		if err != nil {
-			olo.Error("Error reading cached file '%s': %s", cacheURL, err)
+			olo.Error("Error reading cached file '%s': %s", cacheFile, err)
 			return CacheResponse{}, err
 		}
 
 		fi, err := file.Stat()
 		if err != nil {
-			olo.Error("Error stating cached file '%s': %s", cacheURL, err)
+			olo.Error("Error stating cached file '%s': %s", cacheFile, err)
 			return CacheResponse{}, err
 		}
 		// TODO: neede by http.ServeContent otherwise:
@@ -183,7 +193,8 @@ func (c *Cache) release(requestedURL string, content []byte, loadedAt time.Time)
 func (c *Cache) put(cacheURL string, content *io.Reader, contentLength int64) error {
 	// make sure cache directories exist
 	urlParts := strings.SplitN(cacheURL, "/", 2)
-	fileCacheDir := filepath.Dir(filepath.Join(c.folder, urlParts[0]))
+	olo.Debug("adding to cache folder %s the url part 0 %s\n", c.folder, urlParts[0])
+	fileCacheDir := filepath.Join(c.folder, urlParts[0])
 	_, err := h.CheckDirAndCreate(fileCacheDir, "Cache.put")
 	if err != nil {
 		olo.Fatal("Cache.put(): while trying to serve cacheURL %s : Error: %s", cacheURL, err.Error())
@@ -208,12 +219,11 @@ func (c *Cache) put(cacheURL string, content *io.Reader, contentLength int64) er
 		if err != nil {
 			return err
 		}
-		olo.Debug("Wrote content of entry %s into file %s", cacheURL, cacheFile)
 	} else {
 		// Too large for in-memory cache, just write to file
 		defer c.release(cacheURL, nil, time.Now())
 
-		file, err := os.Create(cacheFile) {
+		file, err := os.Create(cacheFile)
 		if err != nil {
 			return err
 		}
@@ -223,10 +233,8 @@ func (c *Cache) put(cacheURL string, content *io.Reader, contentLength int64) er
 		if err != nil {
 			return err
 		}
-		olo.Debug("Wrote content of entry %s into file %s", cacheURL)
 	}
-
-	olo.Debug("Cache wrote content into '%s'", cacheURL)
+	olo.Debug("Wrote content of entry %s into file %s", cacheURL, cacheFile)
 
 	return nil
 }
@@ -240,6 +248,7 @@ func checkCacheTTL(filePath string, cacheURL string, requestedURL string) error 
 			return err
 		}
 		olo.Error("found cache item while starting service, but it was removed afterwards, trying to get it again: '%s'", requestedURL)
+		olo.Fatal("found cache item while starting service, but it was removed afterwards, trying to get it again: '%s'", requestedURL)
 		err = checkCacheTTL(filePath, cacheURL, requestedURL)
 		if err != nil {
 			return err
