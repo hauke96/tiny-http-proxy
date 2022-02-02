@@ -20,3 +20,6 @@ main
 
 # Cache folder
 cache
+
+ssl
+live.yaml

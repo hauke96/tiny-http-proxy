@@ -1,0 +1,23 @@
+---
+debug: true
+skip_timestamp_log: true
+enable_log_colors: true
+listen_address: 0.0.0.0
+listen_port: 8080
+listen_ssl_port: 8443
+timeout_in_s: 500
+return_cache_if_remote_fails: true
+#proxy: http://proxy.domain.tld:3128
+ssl_private_key: ./ssl/service.key
+ssl_certificate_file: ./ssl/service.pem
+cache_folder: ./cache/
+debug_logging: true
+max_cache_item_size_in_mb: 5
+default_cache_ttl: 4s
+caching_rules:
+  Debian Packages:
+      regex: '.*\.deb$'
+      ttl: 8544h # 1 year
+  RPM Packages:
+      regex: '.*\.rpm$'
+      ttl: 8544h # 1 year
