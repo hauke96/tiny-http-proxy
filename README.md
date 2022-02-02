@@ -90,3 +90,54 @@ This means only after 1 year of the last request will the proxy refresh the cach
 
 For everything else the default cache TTL will be 30 minutes, which means the repository metadata files (e.g. Packages, repomd.xml, ...) will be at most 30 minutes older than the upstream file.
 This will enable servers to discover new available package versions after 30 minutes.
+
+Example:
+
+Starting the service and requesting:
+
+```
+$ curl http://localhost:8080/apt.puppetlabs.com/dists/focal/puppet7/binary-amd64/Packages # CACHE_MISS -> download in 0.24295s -> cache TTL '4s'
+$ curl http://localhost:8080/apt.puppetlabs.com/pool/focal/puppet7/p/puppet-agent/puppet-agent_7.14.0-1focal_arm64.deb # CACHE_MISS -> download in 0.36022s -> cache TTL '8544h0m0s'
+$ curl http://localhost:8080/apt.puppetlabs.com/pool/focal/puppet7/p/puppet-agent/puppet-agent_7.14.0-1focal_arm64.deb # CACHE_HIT
+```
+
+```
+$ go run *.go
+[INFO]  config.go:72 | adding caching rule 'Debian Packages': regex:'.*\.deb$' ttl:'8544h'
+[INFO]  config.go:77 | setting ttl to '8544h0m0s' for regex '.*\.deb$'
+[INFO]  config.go:72 | adding caching rule 'RPM Packages': regex:'.*\.rpm$' ttl:'8544h'
+[INFO]  config.go:77 | setting ttl to '8544h0m0s' for regex '.*\.rpm$'
+[DEBUG] main.go:60   | Config loaded
+[DEBUG] cache.go:70  | filepath.Walk'ing directory /home/xorpaul/dev/go/src/github.com/xorpaul/tiny-http-proxy/cache/
+[DEBUG] main.go:63   | Cache initialized
+[INFO]  serve.go:47  | Listening on http://0.0.0.0:8080/
+[INFO]  serve.go:28  | Listening on https://0.0.0.0:8443/
+[INFO]  main.go:158  | Incoming request '/apt.puppetlabs.com/dists/focal/puppet7/binary-amd64/Packages' from '127.0.0.1'
+[INFO]  main.go:173  | Full incoming request for 'http://apt.puppetlabs.com/dists/focal/puppet7/binary-amd64/Packages' from '127.0.0.1'
+[INFO]  main.go:193  | CACHE_MISS for requested 'apt.puppetlabs.com/dists/focal/puppet7/binary-amd64/Packages'
+[INFO]  main.go:221  | GETing http://apt.puppetlabs.com/dists/focal/puppet7/binary-amd64/Packages without proxy
+[DEBUG] main.go:227  | GETing http://apt.puppetlabs.com/dists/focal/puppet7/binary-amd64/Packages took 0.24295s
+[DEBUG] cache.go:196 | adding to cache folder /home/xorpaul/dev/go/src/github.com/xorpaul/tiny-http-proxy/cache/ the url part 0 apt.puppetlabs.com
+[DEBUG] cache.go:216 | Added apt.puppetlabs.com/dists/focal/puppet7/binary-amd64/Packages into in-memory cache
+[DEBUG] cache.go:237 | Wrote content of entry apt.puppetlabs.com/dists/focal/puppet7/binary-amd64/Packages into file /home/xorpaul/dev/go/src/github.com/xorpaul/tiny-http-proxy/cache/apt.puppetlabs.com/dists%2Ffocal%2Fpuppet7%2Fbinary-amd64%2FPackages
+[DEBUG] cache.go:272 | using cache TTL '4s' for file: 'apt.puppetlabs.com/dists/focal/puppet7/binary-amd64/Packages'
+[INFO]  cache.go:293 | CACHE_OK until '3.993891415s'/'2022-02-02 14:59:18' for requested URL 'apt.puppetlabs.com/dists/focal/puppet7/binary-amd64/Packages'
+[INFO]  main.go:158  | Incoming request '/apt.puppetlabs.com/pool/focal/puppet7/p/puppet-agent/puppet-agent_7.14.0-1focal_arm64.deb' from '127.0.0.1'
+[INFO]  main.go:173  | Full incoming request for 'http://apt.puppetlabs.com/pool/focal/puppet7/p/puppet-agent/puppet-agent_7.14.0-1focal_arm64.deb' from '127.0.0.1'
+[INFO]  main.go:193  | CACHE_MISS for requested 'apt.puppetlabs.com/pool/focal/puppet7/p/puppet-agent/puppet-agent_7.14.0-1focal_arm64.deb'
+[INFO]  main.go:221  | GETing http://apt.puppetlabs.com/pool/focal/puppet7/p/puppet-agent/puppet-agent_7.14.0-1focal_arm64.deb without proxy
+[DEBUG] main.go:227  | GETing http://apt.puppetlabs.com/pool/focal/puppet7/p/puppet-agent/puppet-agent_7.14.0-1focal_arm64.deb took 0.36022s
+[DEBUG] cache.go:196 | adding to cache folder /home/xorpaul/dev/go/src/github.com/xorpaul/tiny-http-proxy/cache/ the url part 0 apt.puppetlabs.com
+[DEBUG] cache.go:237 | Wrote content of entry apt.puppetlabs.com/pool/focal/puppet7/p/puppet-agent/puppet-agent_7.14.0-1focal_arm64.deb into file /home/xorpaul/dev/go/src/github.com/xorpaul/tiny-http-proxy/cache/apt.puppetlabs.com/pool%2Ffocal%2Fpuppet7%2Fp%2Fpuppet-agent%2Fpuppet-agent_7.14.0-1focal_arm64.deb
+[DEBUG] cache.go:265 | found matching regex rule: 'Debian Packages' with regex '.*\.deb$' and ttl '8544h0m0s' for cacheURL: 'apt.puppetlabs.com/pool/focal/puppet7/p/puppet-agent/puppet-agent_7.14.0-1focal_arm64.deb'
+[DEBUG] cache.go:272 | using cache TTL '8544h0m0s' for file: 'apt.puppetlabs.com/pool/focal/puppet7/p/puppet-agent/puppet-agent_7.14.0-1focal_arm64.deb'
+[INFO]  cache.go:293 | CACHE_OK until '8543h59m59.992607479s'/'2023-01-24 14:59:38' for requested URL 'apt.puppetlabs.com/pool/focal/puppet7/p/puppet-agent/puppet-agent_7.14.0-1focal_arm64.deb'
+[DEBUG] cache.go:153 | Cache item 'apt.puppetlabs.com/pool/focal/puppet7/p/puppet-agent/puppet-agent_7.14.0-1focal_arm64.deb' known but is not stored in memory. Reading from file: /home/xorpaul/dev/go/src/github.com/xorpaul/tiny-http-proxy/cache/apt.puppetlabs.com/pool%2Ffocal%2Fpuppet7%2Fp%2Fpuppet-agent%2Fpuppet-agent_7.14.0-1focal_arm64.deb
+[INFO]  main.go:158  | Incoming request '/apt.puppetlabs.com/pool/focal/puppet7/p/puppet-agent/puppet-agent_7.14.0-1focal_arm64.deb' from '127.0.0.1'
+[INFO]  main.go:173  | Full incoming request for 'http://apt.puppetlabs.com/pool/focal/puppet7/p/puppet-agent/puppet-agent_7.14.0-1focal_arm64.deb' from '127.0.0.1'
+[INFO]  main.go:202  | CACHE_HIT for requested 'apt.puppetlabs.com/pool/focal/puppet7/p/puppet-agent/puppet-agent_7.14.0-1focal_arm64.deb'
+[DEBUG] cache.go:265 | found matching regex rule: 'Debian Packages' with regex '.*\.deb$' and ttl '8544h0m0s' for cacheURL: 'apt.puppetlabs.com/pool/focal/puppet7/p/puppet-agent/puppet-agent_7.14.0-1focal_arm64.deb'
+[DEBUG] cache.go:272 | using cache TTL '8544h0m0s' for file: 'apt.puppetlabs.com/pool/focal/puppet7/p/puppet-agent/puppet-agent_7.14.0-1focal_arm64.deb'
+[INFO]  cache.go:293 | CACHE_OK until '8543h59m55.146317402s'/'2023-01-24 14:59:38' for requested URL 'apt.puppetlabs.com/pool/focal/puppet7/p/puppet-agent/puppet-agent_7.14.0-1focal_arm64.deb'
+[DEBUG] cache.go:153 | Cache item 'apt.puppetlabs.com/pool/focal/puppet7/p/puppet-agent/puppet-agent_7.14.0-1focal_arm64.deb' known but is not stored in memory. Reading from file: /home/xorpaul/dev/go/src/github.com/xorpaul/tiny-http-proxy/cache/apt.puppetlabs.com/pool%2Ffocal%2Fpuppet7%2Fp%2Fpuppet-agent%2Fpuppet-agent_7.14.0-1focal_arm64.deb
+```
