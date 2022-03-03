@@ -86,13 +86,16 @@ func prepare() {
 	var err error
 
 	cache, err = CreateCache(config.CacheFolder)
-
 	if err != nil {
 		olo.Fatal("Could not init cache: '%s'", err.Error())
 	}
 
 	client = &http.Client{
 		Timeout: time.Second * 120,
+	}
+
+	if len(config.Proxy) > 0 {
+		client = &http.Client{Transport: &http.Transport{Proxy: http.ProxyURL(config.ProxyURL)}}
 	}
 
 	promCounters = make(map[string]prometheus.Counter)
@@ -216,7 +219,6 @@ func handleGet(w http.ResponseWriter, r *http.Request) {
 func GetRemote(requestedURL string) (*http.Response, error) {
 	if len(config.Proxy) > 0 {
 		olo.Info("GETing " + requestedURL + " with proxy " + config.Proxy)
-		client = &http.Client{Transport: &http.Transport{Proxy: http.ProxyURL(config.ProxyURL)}}
 	} else {
 		olo.Info("GETing " + requestedURL + " without proxy")
 	}
