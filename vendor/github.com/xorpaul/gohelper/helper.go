@@ -317,3 +317,15 @@ func ParseNetworks(networkStrings []string, contextMessage string) ([]net.IPNet,
 	}
 	return networks, nil
 }
+
+func BoolPointer(b bool) *bool {
+	return &b
+}
+
+func InBetween(i, min, max int) bool {
+	if (i >= min) && (i <= max) {
+		return true
+	} else {
+		return false
+	}
+}
