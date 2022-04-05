@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -214,25 +213,19 @@ func (c *Cache) put(cacheURL string, content *io.Reader, contentLength int64) er
 
 		defer c.release(cacheURL, buffer.Bytes(), time.Now())
 		olo.Debug("Added %s into in-memory cache", cacheURL)
-
-		err = ioutil.WriteFile(cacheFile, buffer.Bytes(), 0644)
-		if err != nil {
-			return err
-		}
 	} else {
-		// Too large for in-memory cache, just write to file
 		defer c.release(cacheURL, nil, time.Now())
+	}
 
-		file, err := os.Create(cacheFile)
-		if err != nil {
-			return err
-		}
+	file, err := os.Create(cacheFile)
+	if err != nil {
+		return err
+	}
 
-		writer := bufio.NewWriter(file)
-		_, err = io.Copy(writer, *content)
-		if err != nil {
-			return err
-		}
+	writer := bufio.NewWriter(file)
+	_, err = io.Copy(writer, *content)
+	if err != nil {
+		return err
 	}
 	olo.Debug("Wrote content of entry %s into file %s", cacheURL, cacheFile)
 
