@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"io/fs"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -34,8 +35,13 @@ type CacheResponse struct {
 	content  io.ReadSeeker
 }
 
-func CreateCache(cacheFolder string) (*Cache, error) {
-	cacheFolder, err := h.CheckDirAndCreate(cacheFolder, "CreateCache")
+func CreateCache() (*Cache, error) {
+	cacheFolder, err := h.CheckDirAndCreate(config.CacheFolder, "CreateCache HTTP")
+	if err != nil {
+		olo.Fatal("Cache.CreateCache(): Error: %s", err.Error())
+		return nil, err
+	}
+	CacheFolderHTTPS, err := h.CheckDirAndCreate(config.CacheFolderHTTPS, "CreateCache HTTPS")
 	if err != nil {
 		olo.Fatal("Cache.CreateCache(): Error: %s", err.Error())
 		return nil, err
@@ -47,18 +53,27 @@ func CreateCache(cacheFolder string) (*Cache, error) {
 	// Go through every file an save its name in the map. The content of the file
 	// is loaded when needed. This makes sure that we don't have to read
 	// the directory content each time the user wants data that's not yet loaded.
-	prefillCache := func(path string, info os.FileInfo, err error) error {
-		if h.IsDir(path) || path == cacheFolder {
+	prefillCache := func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
 			return nil
 		}
-		// removing cache dir from path
-		olo.Debug("path: %s", path)
-		cachedItem := strings.TrimPrefix(path, cacheFolder)
+		olo.Debug("prefill cache with path: %s", path)
+		urlScheme := "http://"
+		cfTrim := cacheFolder
+		if strings.HasPrefix(path, CacheFolderHTTPS) {
+			urlScheme = "https://"
+			cfTrim = CacheFolderHTTPS
+		}
+		cachedItem := strings.TrimPrefix(path, cfTrim)
 		cachedItem, err = url.QueryUnescape(cachedItem)
 		if err != nil {
 			olo.Fatal("CreateCache(): while url decode file from cache %s Error: %s", path, err.Error())
 			return err
 		}
+		cachedItem = urlScheme + cachedItem
 		olo.Debug("adding to cache: %s", cachedItem)
 		memory[cachedItem] = CacheMemoryItem{}
 
@@ -67,7 +82,9 @@ func CreateCache(cacheFolder string) (*Cache, error) {
 
 	c := make(chan error)
 	olo.Debug("filepath.Walk'ing directory " + cacheFolder)
-	go func() { c <- filepath.Walk(cacheFolder, prefillCache) }()
+	go func() { c <- filepath.WalkDir(cacheFolder, prefillCache) }()
+	olo.Debug("filepath.Walk'ing directory " + CacheFolderHTTPS)
+	go func() { c <- filepath.WalkDir(CacheFolderHTTPS, prefillCache) }()
 	<-c // Walk done
 
 	// for _, info := range fileInfos {
@@ -79,7 +96,6 @@ func CreateCache(cacheFolder string) (*Cache, error) {
 	mutex := &sync.Mutex{}
 
 	cache := &Cache{
-		folder:           cacheFolder,
 		busyItems:        busy,
 		mutex:            mutex,
 		cacheMemoryItems: memory,
@@ -128,21 +144,25 @@ func (c *Cache) get(requestedURL string) (CacheResponse, error) {
 	}
 	// Try to get content. Error if not found.
 	c.mutex.Lock()
-	cacheMemoryItem, ok := c.cacheMemoryItems[cacheURL]
+	cacheMemoryItem, ok := c.cacheMemoryItems[requestedURL]
 	c.mutex.Unlock()
 
 	if !ok && len(cacheMemoryItem.content) > 0 {
 		olo.Debug("Cache item not found: '%s'", cacheURL)
 		return CacheResponse{}, fmt.Errorf("cache item '%s' is not known", cacheURL)
 	}
+	cacheFolder := config.CacheFolder
+	if strings.HasPrefix(requestedURL, "https://") {
+		cacheFolder = config.CacheFolderHTTPS
+	}
+	urlParts := strings.SplitN(requestedURL, "/", 4)
 
-	urlParts := strings.SplitN(cacheURL, "/", 2)
-	fileCacheDir := filepath.Join(c.folder, urlParts[0])
-	uriEncoded := url.QueryEscape(urlParts[1])
+	fileCacheDir := filepath.Join(cacheFolder, urlParts[2])
+	uriEncoded := url.QueryEscape(urlParts[3])
 	cacheFile := filepath.Join(fileCacheDir, uriEncoded)
 
 	// check if Cache is too old based on mtime, if so call getRemote() and renew cache
-	err = checkCacheTTL(cacheFile, cacheURL, requestedURL)
+	err = checkCacheTTL(cacheFile, requestedURL)
 	if err != nil {
 		return CacheResponse{}, err
 	}
@@ -189,18 +209,22 @@ func (c *Cache) release(requestedURL string, content []byte, loadedAt time.Time)
 	c.mutex.Unlock()
 }
 
-func (c *Cache) put(cacheURL string, content *io.Reader, contentLength int64) error {
+func (c *Cache) put(requestedURL string, content *io.Reader, contentLength int64) error {
 	// make sure cache directories exist
-	urlParts := strings.SplitN(cacheURL, "/", 2)
-	olo.Debug("adding to cache folder %s the url part 0 %s\n", c.folder, urlParts[0])
-	fileCacheDir := filepath.Join(c.folder, urlParts[0])
+	cacheFolder := config.CacheFolder
+	if strings.HasPrefix(requestedURL, "https://") {
+		cacheFolder = config.CacheFolderHTTPS
+	}
+	urlParts := strings.SplitN(requestedURL, "/", 4)
+	olo.Debug("adding to cache folder %s the url part 2 %s\n", cacheFolder, urlParts[2])
+	fileCacheDir := filepath.Join(cacheFolder, urlParts[2])
 	_, err := h.CheckDirAndCreate(fileCacheDir, "Cache.put")
 	if err != nil {
-		olo.Fatal("Cache.put(): while trying to serve cacheURL %s : Error: %s", cacheURL, err.Error())
+		olo.Fatal("Cache.put(): while trying to serve cacheURL %s : Error: %s", requestedURL, err.Error())
 		return err
 	}
 
-	uriEncoded := url.QueryEscape(urlParts[1])
+	uriEncoded := url.QueryEscape(urlParts[3])
 	cacheFile := filepath.Join(fileCacheDir, uriEncoded)
 
 	if contentLength <= config.MaxCacheItemSize*1024*1024 {
@@ -211,10 +235,10 @@ func (c *Cache) put(cacheURL string, content *io.Reader, contentLength int64) er
 			return err
 		}
 
-		defer c.release(cacheURL, buffer.Bytes(), time.Now())
-		olo.Debug("Added %s into in-memory cache", cacheURL)
+		defer c.release(requestedURL, buffer.Bytes(), time.Now())
+		olo.Debug("Added %s into in-memory cache", requestedURL)
 	} else {
-		defer c.release(cacheURL, nil, time.Now())
+		defer c.release(requestedURL, nil, time.Now())
 	}
 
 	file, err := os.Create(cacheFile)
@@ -227,12 +251,12 @@ func (c *Cache) put(cacheURL string, content *io.Reader, contentLength int64) er
 	if err != nil {
 		return err
 	}
-	olo.Debug("Wrote content of entry %s into file %s", cacheURL, cacheFile)
+	olo.Debug("Wrote content of entry %s into file %s", requestedURL, cacheFile)
 
 	return nil
 }
 
-func checkCacheTTL(filePath string, cacheURL string, requestedURL string) error {
+func checkCacheTTL(filePath string, requestedURL string) error {
 	fi, err := os.Stat(filePath)
 	if err != nil {
 		promCounters["CACHE_ITEM_MISSING"].Inc()
@@ -242,7 +266,7 @@ func checkCacheTTL(filePath string, cacheURL string, requestedURL string) error 
 		}
 		olo.Error("found cache item while starting service, but it was removed afterwards, trying to get it again: '%s'", requestedURL)
 		olo.Fatal("found cache item while starting service, but it was removed afterwards, trying to get it again: '%s'", requestedURL)
-		err = checkCacheTTL(filePath, cacheURL, requestedURL)
+		err = checkCacheTTL(filePath, requestedURL)
 		if err != nil {
 			return err
 		}
@@ -254,15 +278,15 @@ func checkCacheTTL(filePath string, cacheURL string, requestedURL string) error 
 	for name, cr := range config.CacheRules {
 		r := regexp.MustCompile(cr.Regex)
 		// olo.Debug("comparing regex rule: '%s' with regex '%s' with cacheURL: '%s'", name, cr.Regex, cacheURL)
-		if r.MatchString(cacheURL) {
-			olo.Debug("found matching regex rule: '%s' with regex '%s' and ttl '%s' for cacheURL: '%s'", name, cr.Regex, cr.TTL, cacheURL)
+		if r.MatchString(requestedURL) {
+			olo.Debug("found matching regex rule: '%s' with regex '%s' and ttl '%s' for requestedURL: '%s'", name, cr.Regex, cr.TTL, requestedURL)
 			ttl = cr.TTL
 			// olo.Debug("setting ttl to '%s' for file '%s'", ttl, cacheURL)
 			break
 		}
 	}
 
-	olo.Debug("using cache TTL '%s' for file: '%s'", ttl, cacheURL)
+	olo.Debug("using cache TTL '%s' for file: '%s'", ttl, requestedURL)
 	validUntil := mtime.Add(ttl)
 
 	//valid := time.Now().AddDate(1, 0, 0)
@@ -270,7 +294,7 @@ func checkCacheTTL(filePath string, cacheURL string, requestedURL string) error 
 	// olo.Info("cacheURL:", cacheURL)
 	// olo.Info("requestedURL:", requestedURL)
 	if time.Now().After(validUntil) {
-		olo.Info("CACHE_TOO_OLD for requested URL '%s'", cacheURL)
+		olo.Info("CACHE_TOO_OLD for requested URL '%s'", requestedURL)
 		promCounters["CACHE_TOO_OLD"].Inc()
 		_, err := GetRemote(requestedURL)
 		if err != nil {
@@ -283,7 +307,7 @@ func checkCacheTTL(filePath string, cacheURL string, requestedURL string) error 
 		}
 		return nil
 	}
-	olo.Info("CACHE_OK until '%s'/'%s' for requested URL '%s'", time.Until(validUntil), validUntil.Format("2006-01-02 15:04:05"), cacheURL)
+	olo.Info("CACHE_OK until '%s'/'%s' for requested URL '%s'", time.Until(validUntil), validUntil.Format("2006-01-02 15:04:05"), requestedURL)
 	promCounters["CACHE_OK"].Inc()
 	return nil
 }
