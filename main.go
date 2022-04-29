@@ -85,7 +85,7 @@ func loadConfig(configFile string) {
 func prepare() {
 	var err error
 
-	cache, err = CreateCache(config.CacheFolder)
+	cache, err = CreateCache()
 	if err != nil {
 		olo.Fatal("Could not init cache: '%s'", err.Error())
 	}
@@ -236,11 +236,7 @@ func GetRemote(requestedURL string) (*http.Response, error) {
 
 	if response.StatusCode == 200 {
 		promCounters["REMOTE_OK"].Inc()
-		cacheURL, err := removeSchemeFromURL(requestedURL)
-		if err != nil {
-			return response, err
-		}
-		err = cache.put(cacheURL, &reader, response.ContentLength)
+		err = cache.put(requestedURL, &reader, response.ContentLength)
 		if err != nil {
 			return response, err
 		}
