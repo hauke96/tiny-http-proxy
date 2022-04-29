@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"io/ioutil"
 	"net"
 	"net/url"
@@ -27,6 +28,7 @@ type Config struct {
 	Proxy                    string                  `yaml:"proxy"`
 	ProxyURL                 *url.URL                `yaml:"proxyURL"`
 	CacheFolder              string                  `yaml:"cache_folder"`
+	CacheFolderHTTPS         string                  `yaml:"cache_folder_https"`
 	DefaultCacheTTLString    string                  `yaml:"default_cache_ttl"`
 	DefaultCacheTTL          time.Duration           `yaml:"default_cache_ttlDuration"`
 	MaxCacheItemSize         int64                   `yaml:"max_cache_item_size_in_mb"`
@@ -90,6 +92,17 @@ func LoadConfig(path string) (*Config, error) {
 
 	// make sure we have the absolute path for the cache dir
 	config.CacheFolder, err = filepath.Abs(config.CacheFolder)
+	if err != nil {
+		return nil, err
+	}
+	if len(config.CacheFolder) == 0 {
+		return nil, errors.New("config.CacheFolder setting is not found in config " + path)
+	}
+	if len(config.CacheFolderHTTPS) == 0 {
+		return nil, errors.New("config.CacheFolderHTTPS setting is not found in config " + path)
+	}
+
+	config.CacheFolderHTTPS, err = filepath.Abs(config.CacheFolderHTTPS)
 	if err != nil {
 		return nil, err
 	}
