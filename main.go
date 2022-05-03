@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -158,7 +159,8 @@ func handleGet(w http.ResponseWriter, r *http.Request) {
 		handleError(nil, err, w)
 		return
 	}
-	olo.Info("Incoming request '%s' from '%s'", r.URL.Path, requesterIP)
+	olo.Info("Incoming request '%s' from '%s' on '%s'", r.URL.Path, requesterIP, r.URL.Host)
+	fmt.Printf("%+v\n", r.Host)
 	protocol := "http://"
 	if r.TLS != nil {
 		promCounters["TOTAL_HTTPS_REQUESTS"].Inc()
@@ -166,6 +168,23 @@ func handleGet(w http.ResponseWriter, r *http.Request) {
 	} else {
 		promCounters["TOTAL_HTTP_REQUESTS"].Inc()
 	}
+
+	// try to detect specific service names and set
+	// those specific default cache TTL
+	// this way servicename-1y.domain.tld could be used
+	// to change the default cache TTL to 1 year and so on
+	defaultCacheTTL := config.DefaultCacheTTL
+	for name, cr := range config.ServiceNameDefaultCacheTTL {
+		re := regexp.MustCompile(cr.Regex)
+		// olo.Debug("comparing regex rule: '%s' with regex '%s' with cacheURL: '%s'", name, cr.Regex, cacheURL)
+		if re.MatchString(r.Host) {
+			olo.Debug("found matching service name regex rule: '%s' with regex '%s' and default ttl '%s' for service name: '%s'", name, cr.Regex, cr.TTL, r.Host)
+			defaultCacheTTL = cr.TTL
+			olo.Debug("setting default ttl to '%s' for service name '%s'", defaultCacheTTL.String(), r.Host)
+			break
+		}
+	}
+
 	cacheURL := strings.TrimLeft(r.URL.Path, "/")
 	err = validateCacheURL(cacheURL)
 	if err != nil {
@@ -207,7 +226,7 @@ func handleGet(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// The cache has definitely the data we want, so get a reader for that
-	cacheResponse, err := cache.get(fullUrl)
+	cacheResponse, err := cache.get(fullUrl, defaultCacheTTL)
 
 	if err != nil {
 		handleError(nil, err, w)
