@@ -15,6 +15,13 @@ cache_folder_https: ./cache_https/
 debug_logging: true
 max_cache_item_size_in_mb: 5
 default_cache_ttl: 4s
+service_default_cache_ttl:
+  'localhost:8080':
+    regex: '^localhost:8080$'
+    ttl: 3s
+  'localhost:8443':
+    regex: '^localhost:8443$'
+    ttl: 5s
 caching_rules:
   Debian Packages:
       regex: '.*\.deb$'
