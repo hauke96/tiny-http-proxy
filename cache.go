@@ -47,6 +47,7 @@ func CreateCache() (*Cache, error) {
 		return nil, err
 	}
 
+	mutex := &sync.Mutex{}
 	busy := make(map[string]*sync.Mutex)
 	memory := make(map[string]CacheMemoryItem)
 
@@ -75,7 +76,9 @@ func CreateCache() (*Cache, error) {
 		}
 		cachedItem = urlScheme + cachedItem
 		olo.Debug("adding to cache: %s", cachedItem)
+		mutex.Lock()
 		memory[cachedItem] = CacheMemoryItem{}
+		mutex.Unlock()
 
 		return nil
 	}
@@ -92,8 +95,6 @@ func CreateCache() (*Cache, error) {
 	// memory[info.Name()] = KnownValues{}
 	// }
 	// }
-
-	mutex := &sync.Mutex{}
 
 	cache := &Cache{
 		busyItems:        busy,
@@ -137,7 +138,7 @@ func (c *Cache) has(requestedURL string) (*sync.Mutex, bool) {
 	return lock, false
 }
 
-func (c *Cache) get(requestedURL string) (CacheResponse, error) {
+func (c *Cache) get(requestedURL string, defaultCacheTTL time.Duration) (CacheResponse, error) {
 	cacheURL, err := removeSchemeFromURL(requestedURL)
 	if err != nil {
 		return CacheResponse{}, err
@@ -162,7 +163,7 @@ func (c *Cache) get(requestedURL string) (CacheResponse, error) {
 	cacheFile := filepath.Join(fileCacheDir, uriEncoded)
 
 	// check if Cache is too old based on mtime, if so call getRemote() and renew cache
-	err = checkCacheTTL(cacheFile, requestedURL)
+	err = checkCacheTTL(cacheFile, requestedURL, defaultCacheTTL)
 	if err != nil {
 		return CacheResponse{}, err
 	}
@@ -256,7 +257,7 @@ func (c *Cache) put(requestedURL string, content *io.Reader, contentLength int64
 	return nil
 }
 
-func checkCacheTTL(filePath string, requestedURL string) error {
+func checkCacheTTL(filePath string, requestedURL string, defaultCacheTTL time.Duration) error {
 	fi, err := os.Stat(filePath)
 	if err != nil {
 		promCounters["CACHE_ITEM_MISSING"].Inc()
@@ -266,7 +267,7 @@ func checkCacheTTL(filePath string, requestedURL string) error {
 		}
 		olo.Error("found cache item while starting service, but it was removed afterwards, trying to get it again: '%s'", requestedURL)
 		olo.Fatal("found cache item while starting service, but it was removed afterwards, trying to get it again: '%s'", requestedURL)
-		err = checkCacheTTL(filePath, requestedURL)
+		err = checkCacheTTL(filePath, requestedURL, defaultCacheTTL)
 		if err != nil {
 			return err
 		}
@@ -274,7 +275,7 @@ func checkCacheTTL(filePath string, requestedURL string) error {
 	}
 	mtime := fi.ModTime()
 
-	ttl := config.DefaultCacheTTL
+	ttl := defaultCacheTTL
 	for name, cr := range config.CacheRules {
 		r := regexp.MustCompile(cr.Regex)
 		// olo.Debug("comparing regex rule: '%s' with regex '%s' with cacheURL: '%s'", name, cr.Regex, cacheURL)
