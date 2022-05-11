@@ -113,6 +113,7 @@ func CreateCache() (*Cache, error) {
 func (c *Cache) has(requestedURL string) (*sync.Mutex, bool) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
+	olo.Debug("checking cache for requestedURL %s", requestedURL)
 
 	// If the resource is busy, wait for it to be free. This is the case if
 	// the resource is currently being cached as a result of another request.
@@ -123,6 +124,8 @@ func (c *Cache) has(requestedURL string) (*sync.Mutex, bool) {
 		lock.Unlock()
 		c.mutex.Lock()
 	}
+
+	// fmt.Printf("%+v\n", c.cacheMemoryItems)
 
 	// If a resource is in the shared cache, it can't be reserved. One can simply
 	// access it directly from the cache
@@ -170,7 +173,7 @@ func (c *Cache) get(requestedURL string, defaultCacheTTL time.Duration) (CacheRe
 
 	// Key is known, but not found in-memory, read from file
 	if cacheMemoryItem.content == nil {
-		olo.Debug("Cache item '%s' known but is not stored in memory. Reading from file: %s", cacheURL, cacheFile)
+		olo.Debug("Cache item '%s' is known but is not stored in memory. Reading from file: %s", cacheURL, cacheFile)
 
 		file, err := os.Open(cacheFile)
 		if err != nil {
@@ -217,7 +220,7 @@ func (c *Cache) put(requestedURL string, content *io.Reader, contentLength int64
 		cacheFolder = config.CacheFolderHTTPS
 	}
 	urlParts := strings.SplitN(requestedURL, "/", 4)
-	olo.Debug("adding to cache folder %s the url part 2 %s\n", cacheFolder, urlParts[2])
+	olo.Debug("adding to cache folder %s the url part 2 %s", cacheFolder, urlParts[2])
 	fileCacheDir := filepath.Join(cacheFolder, urlParts[2])
 	_, err := h.CheckDirAndCreate(fileCacheDir, "Cache.put")
 	if err != nil {
