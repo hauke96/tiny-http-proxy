@@ -87,7 +87,7 @@ func LoadConfig(path string) (*Config, error) {
 	}
 
 	for name, cr := range config.ServiceNameDefaultCacheTTL {
-		olo.Info("adding default caching rule for service name '%s': ttl:'%s'", name, cr.Regex, cr.TTLString)
+		olo.Info("adding default caching rule for service name '%s': ttl:'%s'", name, cr.TTLString)
 		cr.TTL, err = time.ParseDuration(cr.TTLString)
 		if err != nil {
 			return nil, err
