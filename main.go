@@ -164,9 +164,9 @@ func handleGet(w http.ResponseWriter, r *http.Request) {
 		handleError(nil, err, w)
 		return
 	}
-	olo.Info("Incoming request '%s' from '%s' on '%s'", r.URL.Path, requesterIP, r.URL.Host)
+	olo.Info("Incoming request '%s' from '%s' on '%s'", r.URL.Path, requesterIP, r.Host)
 	if r.Method != "GET" {
-		olo.Warn("Incoming nonGET HTTP request '%s' from '%s' on '%s'", r.URL.Path, requesterIP, r.URL.Host)
+		olo.Warn("Incoming nonGET HTTP request '%s' from '%s' on '%s'", r.URL.Path, requesterIP, r.Host)
 		errorMessage := fmt.Sprintf("HTTP method '%s' other than GET not allowed for '%s' from '%s' on '%s'", r.Method, r.URL, requesterIP, r.Host)
 		promCounters["TOTAL_HTTP_NONGET_REQUESTS"].Inc()
 		handleError(nil, errors.New(errorMessage), w)
@@ -222,8 +222,8 @@ func handleGet(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Cache miss -> Load data from requested URL and add to cache
-	if busy, ok := cache.has(cacheURL); !ok {
-		olo.Info("CACHE_MISS for requested '%s'", cacheURL)
+	if busy, ok := cache.has(fullUrl); !ok {
+		olo.Info("CACHE_MISS for requested '%s'", fullUrl)
 		promCounters["CACHE_MISS"].Inc()
 		defer busy.Unlock()
 		response, err := GetRemote(fullUrl)
