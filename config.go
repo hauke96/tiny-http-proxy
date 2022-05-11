@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"io/ioutil"
 	"net"
 	"net/url"
@@ -13,26 +14,28 @@ import (
 )
 
 type Config struct {
-	Debug                    bool     `yaml:"debug"`
-	SkipTimestampLog         bool     `yaml:"skip_timestamp_log"`
-	EnableColors             bool     `yaml:"enable_log_colors"`
-	ListenAddress            string   `yaml:"listen_address"`
-	ListenPort               int      `yaml:"listen_port"`
-	ListenSSLPort            int      `yaml:"listen_ssl_port"`
-	Timeout                  int      `yaml:"timeout_in_s"`
-	ProxyNetworkStrings      []string `yaml:"reverse_proxy_networks"`
-	ProxyNetworks            []net.IPNet
-	PrivateKey               string                  `yaml:"ssl_private_key"`
-	CertificateFile          string                  `yaml:"ssl_certificate_file"`
-	Proxy                    string                  `yaml:"proxy"`
-	ProxyURL                 *url.URL                `yaml:"proxyURL"`
-	CacheFolder              string                  `yaml:"cache_folder"`
-	DefaultCacheTTLString    string                  `yaml:"default_cache_ttl"`
-	DefaultCacheTTL          time.Duration           `yaml:"default_cache_ttlDuration"`
-	MaxCacheItemSize         int64                   `yaml:"max_cache_item_size_in_mb"`
-	CacheRules               map[string]CachingRules `yaml:"caching_rules"`
-	ReturnCacheIfRemoteFails bool                    `yaml:"return_cache_if_remote_fails"`
-	PrometheusMetricPrefix   string                  `yaml:"prometheus_metric_prefix"`
+	Debug                      bool     `yaml:"debug"`
+	SkipTimestampLog           bool     `yaml:"skip_timestamp_log"`
+	EnableColors               bool     `yaml:"enable_log_colors"`
+	ListenAddress              string   `yaml:"listen_address"`
+	ListenPort                 int      `yaml:"listen_port"`
+	ListenSSLPort              int      `yaml:"listen_ssl_port"`
+	Timeout                    int      `yaml:"timeout_in_s"`
+	ProxyNetworkStrings        []string `yaml:"reverse_proxy_networks"`
+	ProxyNetworks              []net.IPNet
+	PrivateKey                 string                  `yaml:"ssl_private_key"`
+	CertificateFile            string                  `yaml:"ssl_certificate_file"`
+	Proxy                      string                  `yaml:"proxy"`
+	ProxyURL                   *url.URL                `yaml:"proxyURL"`
+	CacheFolder                string                  `yaml:"cache_folder"`
+	CacheFolderHTTPS           string                  `yaml:"cache_folder_https"`
+	DefaultCacheTTLString      string                  `yaml:"default_cache_ttl"`
+	DefaultCacheTTL            time.Duration           `yaml:"default_cache_ttlDuration"`
+	ServiceNameDefaultCacheTTL map[string]CachingRules `yaml:"service_default_cache_ttl"`
+	MaxCacheItemSize           int64                   `yaml:"max_cache_item_size_in_mb"`
+	CacheRules                 map[string]CachingRules `yaml:"caching_rules"`
+	ReturnCacheIfRemoteFails   bool                    `yaml:"return_cache_if_remote_fails"`
+	PrometheusMetricPrefix     string                  `yaml:"prometheus_metric_prefix"`
 }
 
 type CachingRules struct {
@@ -83,6 +86,15 @@ func LoadConfig(path string) (*Config, error) {
 		return nil, err
 	}
 
+	for name, cr := range config.ServiceNameDefaultCacheTTL {
+		olo.Info("adding default caching rule for service name '%s': ttl:'%s'", name, cr.Regex, cr.TTLString)
+		cr.TTL, err = time.ParseDuration(cr.TTLString)
+		if err != nil {
+			return nil, err
+		}
+		config.ServiceNameDefaultCacheTTL[name] = cr
+	}
+
 	config.ProxyURL, err = url.Parse(config.Proxy)
 	if err != nil {
 		return nil, err
@@ -90,6 +102,17 @@ func LoadConfig(path string) (*Config, error) {
 
 	// make sure we have the absolute path for the cache dir
 	config.CacheFolder, err = filepath.Abs(config.CacheFolder)
+	if err != nil {
+		return nil, err
+	}
+	if len(config.CacheFolder) == 0 {
+		return nil, errors.New("config.CacheFolder setting is not found in config " + path)
+	}
+	if len(config.CacheFolderHTTPS) == 0 {
+		return nil, errors.New("config.CacheFolderHTTPS setting is not found in config " + path)
+	}
+
+	config.CacheFolderHTTPS, err = filepath.Abs(config.CacheFolderHTTPS)
 	if err != nil {
 		return nil, err
 	}

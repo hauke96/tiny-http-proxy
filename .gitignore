@@ -20,6 +20,8 @@ main
 
 # Cache folder
 cache
+# HTTPS Cache folder
+cache_https
 
 ssl
 live.yaml

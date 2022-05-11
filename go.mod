@@ -4,7 +4,7 @@ go 1.17
 
 require (
 	github.com/prometheus/client_golang v1.12.1
-	github.com/stretchr/testify v1.7.0
+	github.com/stretchr/testify v1.7.1
 	github.com/xorpaul/gohelper v0.0.0-20220310122101-4531df827974
 	github.com/xorpaul/sigolo v0.0.0-20211202130915-3571e0fbd4db
 	gopkg.in/yaml.v2 v2.4.0
