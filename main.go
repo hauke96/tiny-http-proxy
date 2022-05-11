@@ -112,6 +112,10 @@ func prepare() {
 		Name: config.PrometheusMetricPrefix + "pkgproxy_remote_ok_total",
 		Help: "The total number of remote requests that were successfull",
 	})
+	promCounters["TOTAL_HTTP_NONGET_REQUESTS"] = promauto.NewCounter(prometheus.CounterOpts{
+		Name: config.PrometheusMetricPrefix + "pkgproxy_http_nonget_requests_total",
+		Help: "The total number of non HTTP GET requests, like POST PUT etc",
+	})
 	promCounters["TOTAL_HTTP_REQUESTS"] = promauto.NewCounter(prometheus.CounterOpts{
 		Name: config.PrometheusMetricPrefix + "pkgproxy_http_requests_total",
 		Help: "The total number of HTTP requests",
@@ -154,13 +158,20 @@ func prepare() {
 
 func handleGet(w http.ResponseWriter, r *http.Request) {
 	promCounters["TOTAL_REQUESTS"].Inc()
+
 	requesterIP, err := h.GetRequestClientIp(r, config.ProxyNetworks)
 	if err != nil {
 		handleError(nil, err, w)
 		return
 	}
 	olo.Info("Incoming request '%s' from '%s' on '%s'", r.URL.Path, requesterIP, r.URL.Host)
-	fmt.Printf("%+v\n", r.Host)
+	if r.Method != "GET" {
+		olo.Warn("Incoming nonGET HTTP request '%s' from '%s' on '%s'", r.URL.Path, requesterIP, r.URL.Host)
+		errorMessage := fmt.Sprintf("HTTP method '%s' other than GET not allowed for '%s' from '%s' on '%s'", r.Method, r.URL, requesterIP, r.Host)
+		promCounters["TOTAL_HTTP_NONGET_REQUESTS"].Inc()
+		handleError(nil, errors.New(errorMessage), w)
+		return
+	}
 	protocol := "http://"
 	if r.TLS != nil {
 		promCounters["TOTAL_HTTPS_REQUESTS"].Inc()
@@ -231,6 +242,10 @@ func handleGet(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		handleError(nil, err, w)
 	} else {
+		// make sure that content is only supposed to be downloaded
+		// browsers will never display content
+		// https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Disposition
+		w.Header().Set("Content-Disposition", "attachment")
 		http.ServeContent(w, r, cacheURL, cacheResponse.loadedAt, cacheResponse.content)
 	}
 }
