@@ -231,31 +231,37 @@ func (c *Cache) put(requestedURL string, content *io.Reader, contentLength int64
 	uriEncoded := url.QueryEscape(urlParts[3])
 	cacheFile := filepath.Join(fileCacheDir, uriEncoded)
 
-	if contentLength <= config.MaxCacheItemSize*1024*1024 {
-		// Small enough to put it into the in-memory cache
-		buffer := &bytes.Buffer{}
-		_, err := io.Copy(buffer, *content)
-		if err != nil {
-			return err
-		}
+	buf := &bytes.Buffer{}
+	tee := io.TeeReader(*content, buf)
 
-		defer c.release(requestedURL, buffer.Bytes(), time.Now())
-		olo.Debug("Added %s into in-memory cache", requestedURL)
-	} else {
-		defer c.release(requestedURL, nil, time.Now())
-	}
-
+	// always write to file
 	file, err := os.Create(cacheFile)
 	if err != nil {
 		return err
 	}
 
 	writer := bufio.NewWriter(file)
-	_, err = io.Copy(writer, *content)
+	written, err := io.Copy(writer, tee)
 	if err != nil {
 		return err
 	}
-	olo.Debug("Wrote content of entry %s into file %s", requestedURL, cacheFile)
+	olo.Debug("Wrote content size %d of entry %s into file %s", written, requestedURL, cacheFile)
+
+	if contentLength <= config.MaxCacheItemSize*1024*1024 {
+		// write to in-memory
+		olo.Debug("Content size of %s is %d not larger than max_cache_item_size_in_mb %d so we write it also into a memory buffer", requestedURL, contentLength, config.MaxCacheItemSize*1024*1024)
+		// Small enough to put it into the in-memory cache
+		buffer := &bytes.Buffer{}
+		_, err := io.Copy(buffer, buf)
+		if err != nil {
+			return err
+		}
+
+		defer c.release(requestedURL, buffer.Bytes(), time.Now())
+		olo.Debug("Added %s into in-memory cache with size of %d", requestedURL, contentLength)
+	} else {
+		defer c.release(requestedURL, nil, time.Now())
+	}
 
 	return nil
 }
