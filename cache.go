@@ -71,24 +71,47 @@ func CreateCache() (*Cache, error) {
 		cachedItem := strings.TrimPrefix(path, cfTrim)
 		cachedItem, err = url.QueryUnescape(cachedItem)
 		if err != nil {
-			olo.Fatal("CreateCache(): while url decode file from cache %s Error: %s", path, err.Error())
+			olo.Fatal("While url decode file from cache %s Error: %s", path, err.Error())
 			return err
 		}
 		cachedItem = urlScheme + cachedItem
-		olo.Debug("adding to cache: %s", cachedItem)
-		mutex.Lock()
-		memory[cachedItem] = CacheMemoryItem{}
-		mutex.Unlock()
+
+		file, err := os.Open(path)
+		if err != nil {
+			olo.Fatal("Error reading cached file '%s': %s", path, err)
+			return err
+		}
+		defer file.Close()
+
+		fi, err := file.Stat()
+		if err != nil {
+			olo.Fatal("Error stating cached file '%s': %s", path, err)
+			return err
+		}
+		if fi.Size() <= config.MaxCacheItemSize*1024*1024 {
+			buffer := &bytes.Buffer{}
+			size, err := io.Copy(buffer, file)
+			if err != nil {
+				return err
+			}
+			mutex.Lock()
+			memory[cachedItem] = CacheMemoryItem{content: buffer.Bytes(), loadedAt: time.Now()}
+			mutex.Unlock()
+
+			olo.Debug("prefillCache: Added %s for %s back into in-memory cache with size of %d", path, cachedItem, size)
+		} else {
+			olo.Debug("prefillCache: Added %s for %s back into known cache items, but will only read it from files as size is %d", path, cachedItem, fi.Size())
+		}
 
 		return nil
 	}
 
-	c := make(chan error)
+	channel := make(chan error)
 	olo.Debug("filepath.Walk'ing directory " + cacheFolder)
-	go func() { c <- filepath.WalkDir(cacheFolder, prefillCache) }()
+	go func() { channel <- filepath.WalkDir(cacheFolder, prefillCache) }()
 	olo.Debug("filepath.Walk'ing directory " + CacheFolderHTTPS)
-	go func() { c <- filepath.WalkDir(CacheFolderHTTPS, prefillCache) }()
-	<-c // Walk done
+	go func() { channel <- filepath.WalkDir(CacheFolderHTTPS, prefillCache) }()
+	<-channel // Walk done
 
 	// for _, info := range fileInfos {
 	// if !info.IsDir() {
@@ -192,6 +215,14 @@ func (c *Cache) get(requestedURL string, defaultCacheTTL time.Duration) (CacheRe
 		// defer file.Close()
 
 		promSummaries["CACHE_READ_FILE"].Observe(float64(fi.Size()))
+		if fi.Size() <= config.MaxCacheItemSize*1024*1024 {
+			// read content of file back into memory
+			err = c.fillInMemoryCacheWithFileContent(cacheFile, requestedURL)
+			if err != nil {
+				olo.Error("Error while reading cached file content back into memory '%s': %s", cacheFile, err)
+				return CacheResponse{}, err
+			}
+		}
 		return CacheResponse{content: file, loadedAt: cacheMemoryItem.loadedAt}, nil
 
 	}
@@ -248,19 +279,10 @@ func (c *Cache) put(requestedURL string, content *io.Reader, contentLength int64
 		// write to in-memory
 		olo.Debug("Content size of %s is %d not larger than max_cache_item_size_in_mb %d so we write it also into a memory buffer", requestedURL, contentLength, config.MaxCacheItemSize*1024*1024)
 		// Small enough to put it into the in-memory cache
-		source, err := os.Open(cacheFile)
+		err = c.fillInMemoryCacheWithFileContent(cacheFile, requestedURL)
 		if err != nil {
 			return err
 		}
-		defer source.Close()
-		buffer := &bytes.Buffer{}
-		size, err := io.Copy(buffer, source)
-		if err != nil {
-			return err
-		}
-
-		defer c.release(requestedURL, buffer.Bytes(), time.Now())
-		olo.Debug("Added %s into in-memory cache with size of %d", requestedURL, size)
 	} else {
 		defer c.release(requestedURL, nil, time.Now())
 	}
@@ -321,5 +343,22 @@ func checkCacheTTL(filePath string, requestedURL string, defaultCacheTTL time.Du
 	}
 	olo.Info("CACHE_OK until '%s'/'%s' for requested URL '%s'", time.Until(validUntil), validUntil.Format("2006-01-02 15:04:05"), requestedURL)
 	promCounters["CACHE_OK"].Inc()
+	return nil
+}
+
+func (c *Cache) fillInMemoryCacheWithFileContent(file string, requestedURL string) error {
+	source, err := os.Open(file)
+	if err != nil {
+		return err
+	}
+	defer source.Close()
+	buffer := &bytes.Buffer{}
+	size, err := io.Copy(buffer, source)
+	if err != nil {
+		return err
+	}
+
+	olo.Debug("Added %s for %s back into in-memory cache with size of %d", file, requestedURL, size)
+	defer c.release(requestedURL, buffer.Bytes(), time.Now())
 	return nil
 }
