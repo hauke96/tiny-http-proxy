@@ -231,9 +231,6 @@ func (c *Cache) put(requestedURL string, content *io.Reader, contentLength int64
 	uriEncoded := url.QueryEscape(urlParts[3])
 	cacheFile := filepath.Join(fileCacheDir, uriEncoded)
 
-	buf := &bytes.Buffer{}
-	tee := io.TeeReader(*content, buf)
-
 	// always write to file
 	file, err := os.Create(cacheFile)
 	if err != nil {
@@ -241,7 +238,7 @@ func (c *Cache) put(requestedURL string, content *io.Reader, contentLength int64
 	}
 
 	writer := bufio.NewWriter(file)
-	written, err := io.Copy(writer, tee)
+	written, err := io.Copy(writer, *content)
 	if err != nil {
 		return err
 	}
@@ -251,14 +248,19 @@ func (c *Cache) put(requestedURL string, content *io.Reader, contentLength int64
 		// write to in-memory
 		olo.Debug("Content size of %s is %d not larger than max_cache_item_size_in_mb %d so we write it also into a memory buffer", requestedURL, contentLength, config.MaxCacheItemSize*1024*1024)
 		// Small enough to put it into the in-memory cache
+		source, err := os.Open(cacheFile)
+		if err != nil {
+			return err
+		}
+		defer source.Close()
 		buffer := &bytes.Buffer{}
-		_, err := io.Copy(buffer, buf)
+		size, err := io.Copy(buffer, source)
 		if err != nil {
 			return err
 		}
 
 		defer c.release(requestedURL, buffer.Bytes(), time.Now())
-		olo.Debug("Added %s into in-memory cache with size of %d", requestedURL, contentLength)
+		olo.Debug("Added %s into in-memory cache with size of %d", requestedURL, size)
 	} else {
 		defer c.release(requestedURL, nil, time.Now())
 	}

@@ -257,8 +257,15 @@ func GetRemote(requestedURL string) (*http.Response, error) {
 		olo.Info("GETing " + requestedURL + " without proxy")
 	}
 
+	req, err := http.NewRequest("GET", requestedURL, nil)
+	if err != nil {
+		olo.Warn("Error creating GET request for %s Error: %s", requestedURL, err.Error())
+	}
+	req.Header.Set("User-Agent", "https://github.com/xorpaul/tinyproxy/")
+	req.Header.Set("Connection", "keep-alive")
+
 	before := time.Now()
-	response, err := client.Get(requestedURL)
+	response, err := client.Do(req)
 	duration := time.Since(before).Seconds()
 	olo.Debug("GETing " + requestedURL + " took " + strconv.FormatFloat(duration, 'f', 5, 64) + "s")
 	if err != nil {
