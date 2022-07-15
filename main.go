@@ -165,7 +165,7 @@ func handleGet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	olo.Info("Incoming request '%s' from '%s' on '%s'", r.URL.Path, requesterIP, r.Host)
-	if r.Method != "GET" {
+	if r.Method != "GET" && r.Method != "HEAD" {
 		olo.Warn("Incoming nonGET HTTP request '%s' from '%s' on '%s'", r.URL.Path, requesterIP, r.Host)
 		errorMessage := fmt.Sprintf("HTTP method '%s' other than GET not allowed for '%s' from '%s' on '%s'", r.Method, r.URL, requesterIP, r.Host)
 		promCounters["TOTAL_HTTP_NONGET_REQUESTS"].Inc()
