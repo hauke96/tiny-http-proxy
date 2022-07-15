@@ -37,10 +37,10 @@ if [ ${#upx} -gt 0 ]; then
   $upx ${projectname}
 fi
 zip ${projectname}-v${1}-darwin-amd64.zip ${projectname}
-test -z ${GITHUB_TOKEN} && echo "skipping github-release as GITHUB_TOKEN is not set" || github-release upload --user xorpaul --repo ${projectname} --tag v${1} --name "${projectname}-darwin-amd64.zip" --file ${projectname}-darwin-amd64.zip
+test -z ${GITHUB_TOKEN} && echo "skipping github-release as GITHUB_TOKEN is not set" || github-release upload --user xorpaul --repo ${projectname} --tag v${1} --name "${projectname}-v${1}-darwin-amd64.zip" --file ${projectname}-v${1}-darwin-amd64.zip
 
-zip ${projectname}-darwin-amd64.zip ${projectname}
-github-release upload --user xorpaul --repo ${projectname} --tag v${1} --name "${projectname}-darwin-amd64.zip" --file ${projectname}-darwin-amd64.zip
+zip ${projectname}-v${1}-darwin-amd64.zip ${projectname}
+github-release upload --user xorpaul --repo ${projectname} --tag v${1} --name "${projectname}-v${1}-darwin-amd64.zip" --file ${projectname}-v${1}-darwin-amd64.zip
 
 ### LINUX ###
 echo "building and uploading ${projectname}-linux-amd64"
@@ -49,5 +49,5 @@ test -e /etc/os-release && ./${projectname} --version
 if [ ${#upx} -gt 0 ]; then
   $upx ${projectname}
 fi
-zip ${projectname}-linux-amd64.zip ${projectname}
-test -z ${GITHUB_TOKEN} && echo "skipping github-release as GITHUB_TOKEN is not set" || github-release upload --user xorpaul --repo ${projectname} --tag v${1} --name "${projectname}-linux-amd64.zip" --file ${projectname}-linux-amd64.zip
+zip ${projectname}-v${1}-linux-amd64.zip ${projectname}
+test -z ${GITHUB_TOKEN} && echo "skipping github-release as GITHUB_TOKEN is not set" || github-release upload --user xorpaul --repo ${projectname} --tag v${1} --name "${projectname}-v${1}-linux-amd64.zip" --file ${projectname}-v${1}-linux-amd64.zip
