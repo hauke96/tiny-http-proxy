@@ -76,31 +76,33 @@ func CreateCache() (*Cache, error) {
 		}
 		cachedItem = urlScheme + cachedItem
 
-		file, err := os.Open(path)
-		if err != nil {
-			olo.Fatal("Error reading cached file '%s': %s", path, err)
-			return err
-		}
-		defer file.Close()
-
-		fi, err := file.Stat()
-		if err != nil {
-			olo.Fatal("Error stating cached file '%s': %s", path, err)
-			return err
-		}
-		if fi.Size() <= config.MaxCacheItemSize*1024*1024 {
-			buffer := &bytes.Buffer{}
-			size, err := io.Copy(buffer, file)
+		if config.PrefillCacheOnStartup {
+			file, err := os.Open(path)
 			if err != nil {
+				olo.Fatal("Error reading cached file '%s': %s", path, err)
 				return err
 			}
-			mutex.Lock()
-			memory[cachedItem] = CacheMemoryItem{content: buffer.Bytes(), loadedAt: time.Now()}
-			mutex.Unlock()
+			defer file.Close()
 
-			olo.Debug("prefillCache: Added %s for %s back into in-memory cache with size of %d", path, cachedItem, size)
-		} else {
-			olo.Debug("prefillCache: Added %s for %s back into known cache items, but will only read it from files as size is %d", path, cachedItem, fi.Size())
+			fi, err := file.Stat()
+			if err != nil {
+				olo.Fatal("Error stating cached file '%s': %s", path, err)
+				return err
+			}
+			if fi.Size() <= config.MaxCacheItemSize*1024*1024 {
+				buffer := &bytes.Buffer{}
+				size, err := io.Copy(buffer, file)
+				if err != nil {
+					return err
+				}
+				mutex.Lock()
+				memory[cachedItem] = CacheMemoryItem{content: buffer.Bytes(), loadedAt: time.Now()}
+				mutex.Unlock()
+
+				olo.Debug("prefillCache: Added %s for %s back into in-memory cache with size of %d", path, cachedItem, size)
+			} else {
+				olo.Debug("prefillCache: Added %s for %s back into known cache items, but will only read it from files as size is %d", path, cachedItem, fi.Size())
+			}
 		}
 
 		return nil
@@ -113,6 +115,9 @@ func CreateCache() (*Cache, error) {
 	go func() { channel <- filepath.WalkDir(CacheFolderHTTPS, prefillCache) }()
 	<-channel // Walk done
 
+	if !config.PrefillCacheOnStartup {
+		olo.Info("prefillCache: Not prefilling in-memory cache with content, because prefill_cache_on_startup in config is set to false")
+	}
 	// for _, info := range fileInfos {
 	// if !info.IsDir() {
 	// memory[info.Name()] = KnownValues{}
