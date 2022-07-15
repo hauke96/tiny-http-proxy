@@ -34,7 +34,7 @@ upx=`which upx`
 echo "building and uploading ${projectname}-darwin-amd64"
 BUILDTIME=$(date -u '+%Y-%m-%d_%H:%M:%S') BUILDVERSION=$(git describe --tags) && env GOOS=darwin GOARCH=amd64 go build -ldflags "-X main.buildtime=$BUILDTIME_v${1} -X main.buildversion=${BUILDVERSION}" && date
 if [ ${#upx} -gt 0 ]; then
-  $upx --brute ${projectname}
+  $upx ${projectname}
 fi
 zip ${projectname}-v${1}-darwin-amd64.zip ${projectname}
 test -z ${GITHUB_TOKEN} && echo "skipping github-release as GITHUB_TOKEN is not set" || github-release upload --user xorpaul --repo ${projectname} --tag v${1} --name "${projectname}-darwin-amd64.zip" --file ${projectname}-darwin-amd64.zip
@@ -47,7 +47,7 @@ echo "building and uploading ${projectname}-linux-amd64"
 BUILDTIME=$(date -u '+%Y-%m-%d_%H:%M:%S') BUILDVERSION=$(git describe --tags) && go build -race -ldflags "-X main.buildtime=$BUILDTIME_v${1} -X main.buildversion=${BUILDVERSION}" && date 
 test -e /etc/os-release && ./${projectname} --version
 if [ ${#upx} -gt 0 ]; then
-  $upx --brute ${projectname}
+  $upx ${projectname}
 fi
 zip ${projectname}-linux-amd64.zip ${projectname}
 test -z ${GITHUB_TOKEN} && echo "skipping github-release as GITHUB_TOKEN is not set" || github-release upload --user xorpaul --repo ${projectname} --tag v${1} --name "${projectname}-linux-amd64.zip" --file ${projectname}-linux-amd64.zip
