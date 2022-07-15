@@ -87,7 +87,7 @@ func Warnf(s string) {
 // Fatalf is a helper function for fatal logging
 func Fatalf(s string) {
 	color.New(color.FgRed).Fprintln(os.Stderr, s)
-	if FatalExit {
+	if FatalExit || WarnExit {
 		os.Exit(1)
 	}
 }
