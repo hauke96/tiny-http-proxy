@@ -15,6 +15,7 @@ cache_folder_https: ./cache_https/
 debug_logging: true
 max_cache_item_size_in_mb: 5
 default_cache_ttl: 4s
+prefill_cache_on_startup: true
 service_default_cache_ttl:
   'localhost:8080':
     regex: '^localhost:8080$'
