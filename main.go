@@ -275,8 +275,6 @@ func GetRemote(requestedURL string) (*http.Response, error) {
 
 	before := time.Now()
 	response, err := client.Do(req)
-	duration := time.Since(before).Seconds()
-	olo.Debug("GETing " + requestedURL + " took " + strconv.FormatFloat(duration, 'f', 5, 64) + "s")
 	if err != nil {
 		return response, err
 	}
@@ -296,4 +294,6 @@ func GetRemote(requestedURL string) (*http.Response, error) {
 		promCounters["REMOTE_ERRORS"].Inc()
 		return response, errors.New("GET " + requestedURL + " returned " + strconv.Itoa(response.StatusCode))
 	}
+	duration := time.Since(before).Seconds()
+	olo.Debug("GETing " + requestedURL + " took " + strconv.FormatFloat(duration, 'f', 5, 64) + "s")
 }
